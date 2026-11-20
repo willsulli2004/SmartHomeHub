@@ -27,7 +27,8 @@ substitutions:
 light:
   - platform: esp32_rmt_led_strip
     id: status_light
-    internal: true
+    # TEMPORARY: shown in Home Assistant so the strip can be tested by hand.
+    name: Status Strip
     pin: GPIO41
     num_leds: ${led_count}
     chipset: WS2812
