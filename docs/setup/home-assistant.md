@@ -11,9 +11,15 @@ rebuilding after a failure.
 | Label | Where that is |
 |---|---|
 | **Proxmox web UI** | The Proxmox page in a browser, signed in as `root`. The Home Assistant VM is **102 (homeassistant)** on node **pve**. |
-| **HA web UI** | Home Assistant in a browser at `http://homeassistant.local:8123`, signed in as the owner. If that name does not load, use the VM's IP address instead. |
+| **HA web UI** | Home Assistant in a browser at `http://homeassistant.local`, signed in as the owner. If that name does not load, use `http://` plus the VM's IP address instead. |
 | **Router** | The admin page of whatever hands out IP addresses on the network. That is normally the router; if the Pi-hole runs DHCP, it is the Pi-hole's admin page. |
 | **Phone** | The Home Assistant Companion app. |
+
+**This install serves its web page on port 80, not Home Assistant's usual 8123.** That is why the
+address above has no `:8123` on the end, and why adding it gives a page that does not load. Guides
+and tools elsewhere assume 8123; wherever they ask for the Home Assistant URL, give the address
+without a port. This only affects the web page and the Companion app. The satellite talks to Home
+Assistant on a different port of its own and is not affected.
 
 Nothing in this guide is typed in a terminal, except the rebuild commands in section 12.
 
@@ -34,6 +40,7 @@ Recorded on 2026-11-19, before the steps below:
 | Host | Mini PC running Proxmox VE 9.2, node `pve` |
 | VM | 102 `homeassistant`, 4 CPU cores, 8 GiB RAM, 64 GiB boot disk |
 | Install type | Home Assistant OS (supports add-ons) |
+| Web page port | 80 (the default is 8123; found on 2026-11-20, origin of the setting not known) |
 | Other guests on the host | 100 `PiHole`, 101 `tracker` |
 | Automatic backups in Home Assistant | on |
 | QEMU guest agent | not enabled (section 2 fixes this) |
@@ -161,7 +168,8 @@ reservation does that without changing anything inside Home Assistant.
    put it in gitignored secrets files.
 
 Check: after the reboot, VM 102's **Summary** page shows the reserved address, and
-`http://homeassistant.local:8123` still loads.
+`http://homeassistant.local` still loads. Home Assistant needs two or three minutes after a reboot
+before the page answers.
 
 Do not also set a static address inside Home Assistant. One source of truth, the reservation, is
 easier to change later.
@@ -339,7 +347,7 @@ Pass: it answers with the current time.
 A browser will not open the microphone on a plain `http://` page, so this test uses the phone.
 
 1. On the phone, install the **Home Assistant** Companion app, on the same Wi-Fi as the mini PC.
-2. Let it find the server, or enter `http://homeassistant.local:8123` by hand. Sign in.
+2. Let it find the server, or enter `http://homeassistant.local` by hand. Sign in.
 3. When it asks about location and sensor sharing, decline. They are not needed.
 4. Open **Assist** in the app, check the assistant is **Jarvis**, tap the microphone, allow microphone
    access, and say "what time is it".
@@ -421,7 +429,8 @@ the original VM 102 may have been created differently, and this path has not bee
    qm start 102
    ```
 
-5. Open `http://homeassistant.local:8123`. On the welcome screen choose **Restore from backup**, upload
+5. Open `http://homeassistant.local:8123`. A brand-new install uses port 8123; the restore brings
+   back this install's port 80 setting, so drop the `:8123` afterwards. On the welcome screen choose **Restore from backup**, upload
    the downloaded backup file, and enter the encryption key. A full restore brings back the add-ons,
    their settings, the MQTT logins and the Assist pipeline.
 
