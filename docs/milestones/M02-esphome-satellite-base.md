@@ -51,7 +51,7 @@ by reading the code and the config, not by measurement.
 | Mic I2S | BCLK 42, WS 1, DIN 2 |
 | DAC I2S | BCK 39, WS 40, DOUT 38 |
 | Mute button | GPIO45, input, internal pull-up only, `ignore_strapping_warning: true` |
-| LED strip (status colours) | GPIO41, 30 LEDs, every channel capped at 50% |
+| LED strip (status colours) | GPIO41, about 50 LEDs, every channel capped at 30% |
 
 ## How it connects to the rest of the project
 This is layer 1 of the architecture, the device.
@@ -175,11 +175,12 @@ Checks Claude ran on this branch, using a temporary copy with the example secret
 - **Status colours on the LED strip were added**, pulling a small part of M3 forward. The first build
   used the devkit's onboard LED, but the strip is what Will watches, and leaving the strip undriven
   let its data line float: it lit white from audio-output noise. The firmware now always drives the
-  strip and caps every channel at 50% (worst case 0.9 A against the 1.2 A budget). M3 still owns the
+  strip and caps every channel at 30% (worst case 0.9 A for 50 LEDs against the 1.2 A budget). M3 still owns the
   full set of states, animations and the encoder pixel.
-- **The I2S output never stops.** ESPHome's default stops it 500 ms after a sound, which made the amp
-  hum when idle. `timeout: never` plus a keep-alive script keeps it sending silence, as the Arduino
-  speaker test did.
+- **The I2S channel is kept alive between sounds** (`keep_alive: true`). ESPHome's default deletes it
+  500 ms after a sound, leaving the DAC's lines floating, and the amp hums when idle. A first attempt
+  used `timeout: never` with a script that restarted the output; that stopped the voice assistant
+  from ever returning to idle, so the wake word was detected but ignored. It was removed.
 - **A firmware version was added**, so the OTA and rollback tests can show which build is running.
 - **`sat-hub-v1` is tagged on the branch before merge**, not after, because the rollback test needs it.
 - **The example API key changed**, because ESPHome rejects an all-zero key.

@@ -56,26 +56,15 @@ speaker:
     bits_per_sample: 16bit
     channel: left
     buffer_duration: 100ms
-    # Never stop the I2S output. By default ESPHome stops it 500 ms after the last
-    # sound; the DAC's clocks then stop and the amp hums until the next sound.
-    # Kept running, it sends digital silence, as the Arduino speaker test did.
-    timeout: never
-
-script:
-  # Starts the I2S output if it is not already running. With "timeout: never" it
-  # then keeps sending silence. Called at boot and whenever playback goes idle,
-  # in case the media player stopped the output at the end of a sound.
-  - id: speaker_keep_alive
-    mode: restart
-    then:
-      - delay: 1s
-      - lambda: id(i2s_spk).start();
-
-esphome:
-  on_boot:
-    - priority: -100
-      then:
-        - script.execute: speaker_keep_alive
+    # Keep the I2S channel allocated between sounds. By default ESPHome deletes it
+    # 500 ms after the last sound, which leaves the DAC's clock and data lines
+    # floating; they pick up noise and the amp hums. Kept alive, the lines stay
+    # driven and the DAC mutes itself while the clocks are stopped.
+    #
+    # Do not use "timeout: never" here: the speaker then never reports that it has
+    # stopped, the media player never finishes its announcement, and the voice
+    # assistant stays busy and ignores the wake word.
+    keep_alive: true
 
 media_player:
   # The only route to the speaker. Voice replies use it now; the volume knob (M3)
@@ -92,5 +81,3 @@ media_player:
     volume_min: 0.0
     volume_max: ${speaker_volume_max}
     volume_increment: 0.02
-    on_idle:
-      - script.execute: speaker_keep_alive

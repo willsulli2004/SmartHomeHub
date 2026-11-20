@@ -13,15 +13,16 @@
 #
 # Current limit (hardware constraint): the strip has its own buck with a budget of
 # about 1.2 A. A WS2812B draws about 60 mA at full white, so 30 LEDs could draw
-# 1.8 A. color_correct below scales every channel to 50%, in the driver, for every
-# colour and effect: worst case 30 x 60 mA x 0.5 = 0.9 A. The status colours use
-# one channel at reduced brightness and draw far less (about 0.1 A).
+# 1.8 A, and this strip has about 50. color_correct below scales every channel to
+# 30%, in the driver, for every colour and effect: worst case
+# 50 x 60 mA x 0.3 = 0.9 A (and still 1.08 A if the strip turns out to have 60).
+# The status colours light one channel only and draw about 0.3 A at most.
 # If led_count is raised, lower led_max_level so that
 #   led_count x 0.06 A x led_max_level stays under 1.2 A.
 
 substitutions:
-  led_count: "30"
-  led_max_level: "50%"
+  led_count: "50"
+  led_max_level: "30%"
 
 light:
   - platform: esp32_rmt_led_strip
@@ -41,7 +42,7 @@ script:
     then:
       - light.turn_on:
           id: status_light
-          brightness: 60%
+          brightness: 100%
           red: 0%
           green: 0%
           blue: 100%
@@ -51,7 +52,7 @@ script:
     then:
       - light.turn_on:
           id: status_light
-          brightness: 60%
+          brightness: 100%
           red: 0%
           green: 100%
           blue: 0%
