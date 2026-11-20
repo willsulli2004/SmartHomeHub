@@ -1,0 +1,59 @@
+# Controls: the mute button.
+#
+# The button is a latching switch from GPIO45 to GND. Latched (closed) = muted.
+# While muted: wake word detection is stopped, any conversation in progress is
+# stopped, and the microphone is muted, so no audio leaves the device.
+
+binary_sensor:
+  - platform: gpio
+    id: mute_button
+    name: Mute
+    icon: mdi:microphone-off
+    pin:
+      number: GPIO45
+      # Hard rule 1: GPIO45 is a strapping pin and must be low at boot.
+      # Input with the INTERNAL pull-up only. Never an output, never an external
+      # pull-up. The internal pull-up is enabled after boot, which is safe.
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+      ignore_strapping_warning: true
+    filters:
+      - delayed_on_off: 50ms
+    on_press:
+      - script.execute: mute_on
+    on_release:
+      - script.execute: mute_off
+
+script:
+  - id: mute_on
+    mode: restart
+    then:
+      - voice_assistant.stop:
+      - micro_wake_word.stop:
+      - microphone.mute: sat_mic
+      - script.execute: status_light_idle
+
+  - id: mute_off
+    mode: restart
+    then:
+      - microphone.unmute: sat_mic
+      - if:
+          condition:
+            voice_assistant.connected:
+          then:
+            - micro_wake_word.start:
+      - script.execute: status_light_idle
+
+esphome:
+  on_boot:
+    # If the device powers up with the button already latched, apply mute before
+    # anything can listen. Runs late, after the mic and button are set up.
+    - priority: -100
+      then:
+        - if:
+            condition:
+              binary_sensor.is_on: mute_button
+            then:
+              - script.execute: mute_on

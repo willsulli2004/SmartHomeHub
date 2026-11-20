@@ -48,14 +48,41 @@ virtual environment does not need to be activated. `git` commands work from the 
    .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
    ```
 
-2. Create the real secrets file from the example and fill in every value. It is gitignored; never
+2. Give ESPHome two short folders, one for its compiler and one for its build output. Windows limits
+   a file path to 260 characters, and the default locations go past that: the compiler because
+   Microsoft Store Python keeps its data in a very deep folder, and the build output because it sits
+   inside the repo folder. Without this, builds fail with errors such as
+   `fatal error: stdint.h: No such file or directory` or `ninja: error: WriteFile(...): Unable to
+   create file`. Run both commands once:
+
+   ```powershell
+   [Environment]::SetEnvironmentVariable('ESPHOME_ESP_IDF_PREFIX', 'C:\ESPHome\idf', 'User')
+   ```
+   ```powershell
+   [Environment]::SetEnvironmentVariable('ESPHOME_DATA_DIR', 'C:\ESPHome\data', 'User')
+   ```
+
+   Then **close and reopen the terminal** (and PyCharm, if you use its terminal) so the settings are
+   picked up. To check, this must print both folders in the new terminal:
+
+   ```powershell
+   $env:ESPHOME_ESP_IDF_PREFIX; $env:ESPHOME_DATA_DIR
+   ```
+
+   The first compile then downloads the compiler into `C:\ESPHome\idf` (a few GB, 10 to 20 minutes,
+   once). Build files and compiled firmware go to `C:\ESPHome\data`, not into the repo. Compiled
+   firmware contains the Wi-Fi password in plain text, so treat that folder as private.
+
+   Run ESPHome from PowerShell, not Git Bash; its compiler does not install under Git Bash.
+
+3. Create the real secrets file from the example and fill in every value. It is gitignored; never
    commit it or paste its contents anywhere.
 
    ```powershell
    Copy-Item firmware\satellite\secrets.example.yaml firmware\satellite\secrets.yaml
    ```
 
-3. Check that git ignores it. This must print the path:
+4. Check that git ignores it. This must print the path:
 
    ```powershell
    git check-ignore firmware/satellite/secrets.yaml
@@ -118,8 +145,11 @@ Throughout this doc, `sat-hub-vN` in running text means "the tag with the right 
 
 Tag rules:
 - `N` counts up by one for every firmware that gets flashed and kept. The first is `sat-hub-v1` (M2).
-- Tag the commit that was actually built and flashed. After a milestone PR merges, that is the merge
-  result on `main`; if `main` differs from what is on the device, re-flash from `main` and tag that.
+- Tag the commit that was actually built, flashed and tested. That is normally a commit on the
+  milestone branch, tagged once its checklist passes and before the PR merges. The tag keeps pointing
+  at that commit after the merge, so the firmware stays rebuildable.
+- The firmware reports its own version (`firmware_version` in `sat-hub.yaml`), shown in Home
+  Assistant on the device page as **Firmware**. Use it to confirm which build is running.
 - Tags are never moved or deleted. A bad version gets a new, higher tag once it is fixed.
 - A tag pins the source and, through `requirements-dev.txt`, the ESPHome version. It does not pin
   `secrets.yaml`, which stays local.
@@ -154,7 +184,14 @@ Tag rules:
 4. Watch the log, which `esphome run` prints in the same terminal, until the satellite reconnects to
    Wi-Fi and to Home Assistant. Press Ctrl+C to stop watching; that does not affect the satellite.
 
-The very first flash (M2) goes over USB, because OTA needs ESPHome already on the device.
+The very first flash (M2) goes over USB, because OTA needs ESPHome already on the device. It uses the
+same command as "Last resort: USB" below.
+
+To read the satellite's log later without flashing anything:
+
+```powershell
+.\.venv\Scripts\esphome.exe logs firmware/satellite/sat-hub.yaml --device sat-hub.local
+```
 
 ### Home Assistant
 
@@ -173,8 +210,8 @@ helpers). The milestone doc says how each file gets from the repo onto Home Assi
 Run the checklist in the milestone doc's "How to test" section, top to bottom. Note every result in
 the PR, including failures and anything that looked odd.
 
-- All pass: review and merge the PR, then tag the new firmware as `sat-hub-vN+1` if the satellite
-  changed.
+- All pass: if the satellite changed, tag the commit you flashed as the next `sat-hub-vN`, then
+  review and merge the PR.
 - Anything fails: report it in the PR. If the device is still usable, leave it; fixes go on the same
   branch. If it is not usable, roll back.
 
@@ -229,8 +266,11 @@ See [home-assistant.md](home-assistant.md#restoring).
 Use this only when the satellite does not come back on Wi-Fi, so OTA is impossible.
 
 1. Check out the last good tag (as above).
-2. Connect the devkit's **UART** USB port to the PC.
-3. Find the COM port in Device Manager, then flash over USB:
+2. Connect the devkit's USB port labelled **USB** (the native one, not the one labelled UART) to the
+   PC. The 12V supply may stay connected, as it was for the Arduino tests.
+3. Find the COM port: open Device Manager, expand **Ports (COM & LPT)**, and note the entry that
+   appears when the cable is plugged in, for example `COM5`. Put that in place of `COMx` below and
+   flash over USB:
 
    ```powershell
    .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device COMx

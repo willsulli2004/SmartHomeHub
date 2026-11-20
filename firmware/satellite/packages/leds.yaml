@@ -1,0 +1,97 @@
+# LEDs: status colours on the WS2812B strip (DATA on GPIO41).
+#
+# M2 only shows a solid colour per state. M3 adds the full set of LED states and
+# animations and the encoder's pixel.
+#
+#   off         idle, waiting for the wake word
+#   blue        wake word heard, listening
+#   green       thinking / speaking
+#   dim red     muted
+#
+# The strip must always be driven by the firmware. Left undriven, its data line
+# floats and picks up noise from the audio output, which lights it at random.
+#
+# Current limit (hardware constraint): the strip has its own buck with a budget of
+# about 1.2 A. A WS2812B draws about 60 mA at full white, so 30 LEDs could draw
+# 1.8 A, and this strip has 60 (the count used in the Arduino all-components test).
+# color_correct below scales every channel to 25%, in the driver, for every colour
+# and effect: worst case 60 x 60 mA x 0.25 = 0.9 A.
+# The status colours light one channel only and draw about 0.3 A at most.
+# If led_count is raised, lower led_max_level so that
+#   led_count x 0.06 A x led_max_level stays under 1.2 A.
+
+substitutions:
+  led_count: "60"
+  led_max_level: "25%"
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_light
+    # TEMPORARY: shown in Home Assistant so the strip can be tested by hand.
+    name: Status Strip
+    pin: GPIO41
+    num_leds: ${led_count}
+    # Bit timings copied from the Adafruit NeoPixel library, which drove this strip
+    # correctly in the Arduino all-components test. ESPHome's built-in WS2812
+    # timings (400/1000/1000/400 ns, no reset) got no response from it.
+    bit0_high: 400ns
+    bit0_low: 850ns
+    bit1_high: 800ns
+    bit1_low: 450ns
+    reset_low: 300us
+    channel_colors: GRB
+    # DMA (use_dma) is deliberately NOT used. With it, the strip froze on its last
+    # colour as soon as the speaker played a reply, and stayed frozen through
+    # software restarts until the hub was power-cycled (firmware 0.2.6 to 0.2.9).
+    # The speaker's I2S output also uses DMA; this build tests whether keeping the
+    # LED driver off DMA avoids the freeze.
+    use_psram: false
+    color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
+    default_transition_length: 0s
+    restore_mode: ALWAYS_OFF
+
+script:
+  - id: status_light_listening
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 0%
+          green: 0%
+          blue: 100%
+
+  - id: status_light_busy
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 0%
+          green: 100%
+          blue: 0%
+
+  # Shows the resting state: dim red while muted, otherwise off.
+  - id: status_light_idle
+    mode: restart
+    then:
+      - if:
+          condition:
+            binary_sensor.is_on: mute_button
+          then:
+            - light.turn_on:
+                id: status_light
+                brightness: 40%
+                red: 100%
+                green: 0%
+                blue: 0%
+          else:
+            - light.turn_off: status_light
+
+esphome:
+  on_boot:
+    # Write the resting state once at start-up so the strip is driven from the
+    # beginning and clears anything it latched while the chip was booting.
+    - priority: -100
+      then:
+        - script.execute: status_light_idle
