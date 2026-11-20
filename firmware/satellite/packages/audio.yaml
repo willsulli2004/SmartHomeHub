@@ -1,0 +1,74 @@
+# Audio: microphone in, DAC/amp out, and the speaker level cap.
+#
+# The mic and the DAC each get their own I2S bus, so capture and playback can run
+# at different sample rates at the same time.
+
+substitutions:
+  # Hard rule 3: the speaker level must never exceed 0.5 of digital full scale
+  # (-6 dBFS), because the PCM5102's 2.1 Vrms full scale overdrives the MAX9744.
+  #
+  # How ESPHome 2026.11 turns volume into level (read from its source,
+  # i2s_audio_speaker.cpp and speaker_media_player.cpp):
+  #   - The I2S speaker applies software gain in decibels:
+  #       gain_dB = -49 * (1 - speaker_volume)      speaker_volume 1.0 = 0 dB
+  #   - The media player maps its 0..100% onto volume_min..volume_max before
+  #     handing the value to the speaker.
+  # So the cap is a speaker_volume of 1 - 6.02/49 = 0.877. With volume_max 0.87:
+  #       100% -> -49 * 0.13 = -6.37 dBFS = 0.48 of full scale   (under the cap)
+  #        50% -> -27.7 dBFS, close to the Arduino test's 30% default (-27 dB)
+  #
+  # Do not raise this value. Nothing may play through the I2S speaker directly;
+  # every sound goes through the media player below so this limit always applies.
+  speaker_volume_max: "0.87"
+  speaker_volume_initial: "0.5"
+
+i2s_audio:
+  # ICS-43434 microphone.
+  - id: i2s_mic_bus
+    i2s_bclk_pin: GPIO42
+    i2s_lrclk_pin: GPIO1
+  # PCM5102 DAC -> MAX9744 amp (analog volume mode, left input).
+  - id: i2s_spk_bus
+    i2s_bclk_pin: GPIO39
+    i2s_lrclk_pin: GPIO40
+
+microphone:
+  # 24-bit samples in a 32-bit slot, left channel (SEL tied to GND), 16 kHz.
+  # Gain is applied where the audio is consumed; see mic_gain_factor in voice.yaml.
+  - platform: i2s_audio
+    id: sat_mic
+    i2s_audio_id: i2s_mic_bus
+    i2s_din_pin: GPIO2
+    adc_type: external
+    pdm: false
+    sample_rate: 16000
+    bits_per_sample: 32bit
+    channel: left
+
+speaker:
+  # Mono audio on the left channel, which is the amp's only connected input.
+  - platform: i2s_audio
+    id: i2s_spk
+    i2s_audio_id: i2s_spk_bus
+    i2s_dout_pin: GPIO38
+    dac_type: external
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: left
+    buffer_duration: 100ms
+
+media_player:
+  # The only route to the speaker. Voice replies use it now; the volume knob (M3)
+  # and alarms (M5) will use it too, so all of them inherit the cap.
+  - platform: speaker
+    id: sat_media_player
+    name: Media Player
+    announcement_pipeline:
+      speaker: i2s_spk
+      format: FLAC
+      sample_rate: 48000
+      num_channels: 1
+    volume_initial: ${speaker_volume_initial}
+    volume_min: 0.0
+    volume_max: ${speaker_volume_max}
+    volume_increment: 0.02

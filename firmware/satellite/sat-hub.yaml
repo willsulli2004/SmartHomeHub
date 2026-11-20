@@ -1,0 +1,80 @@
+# Smart Home Hub voice satellite (ESP32-S3-DevKitC-1 N16R8 clone).
+#
+# This file holds the board, network and update settings. Everything else lives in
+# packages/, one file per function:
+#   packages/audio.yaml     mic, DAC/amp output, media player, speaker level cap
+#   packages/voice.yaml     "Hey Jarvis" wake word and the voice assistant
+#   packages/controls.yaml  mute button
+#   packages/leds.yaml      onboard status light (temporary until M3)
+#
+# Build:  esphome compile firmware/satellite/sat-hub.yaml
+# Flash:  see docs/setup/deploy.md
+#
+# Secrets come from firmware/satellite/secrets.yaml (gitignored). Copy
+# secrets.example.yaml to create it.
+
+substitutions:
+  name: sat-hub
+  friendly_name: Satellite Hub
+  # Shown in Home Assistant on the device page as "Firmware". Bump it for every
+  # build that gets flashed, so the running build can be identified.
+  firmware_version: "0.2.0"
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2026.11.0
+  project:
+    name: willsulli2004.sat-hub
+    version: ${firmware_version}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  cpu_frequency: 240MHz
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # Larger caches keep on-device wake word detection fast enough on the S3.
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+
+# 8MB octal PSRAM. It occupies GPIO33-37, which nothing else may use.
+psram:
+  mode: octal
+  speed: 80MHz
+
+# Logs go to the devkit's native USB port (the one labelled "USB"), which is also
+# the port used for the first flash. After that, logs are read over Wi-Fi.
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: DEBUG
+
+# Encrypted connection to Home Assistant.
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+# Over-the-air updates.
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Recovery hotspot, opened only when the home Wi-Fi cannot be joined.
+  ap:
+    ssid: "Sat-Hub Fallback"
+    password: !secret fallback_ap_password
+
+# Lets a phone on the recovery hotspot enter new Wi-Fi details.
+captive_portal:
+
+packages:
+  audio: !include packages/audio.yaml
+  voice: !include packages/voice.yaml
+  controls: !include packages/controls.yaml
+  leds: !include packages/leds.yaml

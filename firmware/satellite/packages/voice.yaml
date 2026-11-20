@@ -1,0 +1,61 @@
+# Voice: on-device wake word and the Home Assistant voice assistant.
+#
+# Flow: micro_wake_word hears "Hey Jarvis" on the device -> voice_assistant streams
+# the following speech to Home Assistant -> the reply plays through the media
+# player in audio.yaml. No audio leaves the device until the wake word is heard.
+
+substitutions:
+  # Digital microphone gain, 1 to 64. The Arduino tests proved +30 dB for far-field
+  # pickup (a shift of 11 instead of 16 from the 32-bit slot = 2^5 = 32x).
+  # Lower it if close or loud speech clips; raise it if the wake word is missed
+  # from across the room.
+  mic_gain_factor: "32"
+
+micro_wake_word:
+  id: mww
+  microphone:
+    microphone: sat_mic
+    channels: 0
+    gain_factor: ${mic_gain_factor}
+  stop_after_detection: false
+  models:
+    - model: hey_jarvis
+      id: hey_jarvis
+  vad:
+  on_wake_word_detected:
+    - if:
+        condition:
+          not:
+            voice_assistant.is_running:
+        then:
+          - voice_assistant.start:
+              wake_word: !lambda return wake_word;
+
+voice_assistant:
+  id: va
+  microphone:
+    microphone: sat_mic
+    channels: 0
+    gain_factor: ${mic_gain_factor}
+  media_player: sat_media_player
+  micro_wake_word: mww
+  noise_suppression_level: 2
+  # Wake word detection only runs while Home Assistant is connected and the
+  # device is not muted.
+  on_client_connected:
+    - if:
+        condition:
+          binary_sensor.is_off: mute_button
+        then:
+          - micro_wake_word.start:
+  on_client_disconnected:
+    - voice_assistant.stop:
+    - micro_wake_word.stop:
+  on_listening:
+    - script.execute: status_light_listening
+  on_stt_end:
+    - script.execute: status_light_busy
+  on_end:
+    - script.execute: status_light_idle
+  on_error:
+    - script.execute: status_light_idle
