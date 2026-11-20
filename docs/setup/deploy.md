@@ -48,14 +48,41 @@ virtual environment does not need to be activated. `git` commands work from the 
    .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
    ```
 
-2. Create the real secrets file from the example and fill in every value. It is gitignored; never
+2. Give ESPHome two short folders, one for its compiler and one for its build output. Windows limits
+   a file path to 260 characters, and the default locations go past that: the compiler because
+   Microsoft Store Python keeps its data in a very deep folder, and the build output because it sits
+   inside the repo folder. Without this, builds fail with errors such as
+   `fatal error: stdint.h: No such file or directory` or `ninja: error: WriteFile(...): Unable to
+   create file`. Run both commands once:
+
+   ```powershell
+   [Environment]::SetEnvironmentVariable('ESPHOME_ESP_IDF_PREFIX', 'C:\ESPHome\idf', 'User')
+   ```
+   ```powershell
+   [Environment]::SetEnvironmentVariable('ESPHOME_DATA_DIR', 'C:\ESPHome\data', 'User')
+   ```
+
+   Then **close and reopen the terminal** (and PyCharm, if you use its terminal) so the settings are
+   picked up. To check, this must print both folders in the new terminal:
+
+   ```powershell
+   $env:ESPHOME_ESP_IDF_PREFIX; $env:ESPHOME_DATA_DIR
+   ```
+
+   The first compile then downloads the compiler into `C:\ESPHome\idf` (a few GB, 10 to 20 minutes,
+   once). Build files and compiled firmware go to `C:\ESPHome\data`, not into the repo. Compiled
+   firmware contains the Wi-Fi password in plain text, so treat that folder as private.
+
+   Run ESPHome from PowerShell, not Git Bash; its compiler does not install under Git Bash.
+
+3. Create the real secrets file from the example and fill in every value. It is gitignored; never
    commit it or paste its contents anywhere.
 
    ```powershell
    Copy-Item firmware\satellite\secrets.example.yaml firmware\satellite\secrets.yaml
    ```
 
-3. Check that git ignores it. This must print the path:
+4. Check that git ignores it. This must print the path:
 
    ```powershell
    git check-ignore firmware/satellite/secrets.yaml
