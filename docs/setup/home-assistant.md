@@ -48,6 +48,10 @@ Recorded on 2026-11-19, before the steps below:
 | Mosquitto, Whisper, Piper, Assist pipeline | not set up (sections 6 to 9) |
 | Devices, integrations, cloud login | none |
 
+Sections 2 to 10 were completed on 2026-11-20 and the section 11 checklist passed. The VM now has the
+guest agent, a reserved address, three backup layers, Mosquitto with its three logins, Whisper, Piper,
+and the `Jewel` assistant.
+
 ## 2. Proxmox settings for the VM
 
 **Where:** Proxmox web UI → VM 102 → **Options**.
