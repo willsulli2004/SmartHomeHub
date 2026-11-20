@@ -51,7 +51,7 @@ by reading the code and the config, not by measurement.
 | Mic I2S | BCLK 42, WS 1, DIN 2 |
 | DAC I2S | BCK 39, WS 40, DOUT 38 |
 | Mute button | GPIO45, input, internal pull-up only, `ignore_strapping_warning: true` |
-| LED strip (status colours) | GPIO41, 60 LEDs, every channel capped at 25% |
+| LED strip (status colours) | GPIO41, 71 LEDs, every channel capped at 70%, one colour at a time |
 
 ## How it connects to the rest of the project
 This is layer 1 of the architecture, the device.
@@ -197,11 +197,15 @@ Checks Claude ran on this branch, using a temporary copy with the example secret
   video. The planned fix is the amp's MUTE pin on GPIO4 (open-drain, only after Will measures that MUTE
   idles at 3.6V or less), which needs the assembled hub reopened; wiring and grounding are the other
   suspects.
-- **The LED strip did not respond to ESPHome through firmware 0.2.5**, although the same strip and pin
-  worked with the Adafruit NeoPixel library. Firmware 0.2.6 copies that library's bit timings. If the
-  strip still does not respond, the next check is the data wire itself.
-- **The strip is temporarily exposed in Home Assistant as a light, "Status Strip",** so it can be tested
-  by hand. Decide in M3 whether it stays.
+- **The LED strip needs custom bit timings.** It ignored ESPHome's built-in WS2812 timings through
+  firmware 0.2.5 and responded as soon as 0.2.6 copied the Adafruit NeoPixel library's timings.
+- **The strip's current limit depends on the firmware showing one colour at a time.** Channels are
+  capped at 70%, which keeps a single colour on all 71 LEDs at about 1.0 A against the buck's 1.2 A.
+  White or mixed colours at that level would overload it, so the strip is not adjustable from Home
+  Assistant. Will chose this over a 25% cap that was safe for any colour but too dim. M3 should add a
+  limiter that checks each frame before adding mixed colours or animations.
+- **DMA for the LED driver is not used.** With it enabled (0.2.6) the strip stopped updating for good
+  after the first voice reply. The cause was not investigated.
 - **Nothing here has run on the hardware yet.** Mic levels, wake word reliability and speaker loudness
   are all unproven until Will's tests.
 - **The +30 dB mic gain is a starting point.** It was proven for speech-to-text in the Arduino tests,
