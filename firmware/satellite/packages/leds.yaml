@@ -40,13 +40,11 @@ light:
     bit1_low: 450ns
     reset_low: 300us
     channel_colors: GRB
-    # Send each frame by DMA from internal RAM, with room for the whole frame
-    # (60 LEDs x 24 bits = 1440 symbols). Without this the driver holds only 192
-    # symbols (8 LEDs) and refills the rest from an interrupt. With audio, Wi-Fi
-    # and wake word detection running, those refills arrive late, the frame is cut
-    # short, and the strip latches garbage on its first few LEDs.
-    use_dma: true
-    rmt_symbols: 1536
+    # DMA (use_dma) is deliberately NOT used. With it, the strip froze on its last
+    # colour as soon as the speaker played a reply, and stayed frozen through
+    # software restarts until the hub was power-cycled (firmware 0.2.6 to 0.2.9).
+    # The speaker's I2S output also uses DMA; this build tests whether keeping the
+    # LED driver off DMA avoids the freeze.
     use_psram: false
     color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
     default_transition_length: 0s
