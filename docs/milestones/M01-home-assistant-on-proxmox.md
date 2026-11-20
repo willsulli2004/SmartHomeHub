@@ -1,5 +1,5 @@
 # M01 — Home Assistant on Proxmox
-Status: in review   Branch: `milestone/M01-home-assistant`   PR: to be added when the PR is opened
+Status: in review   Branch: `milestone/M01-home-assistant`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/2
 
 ## Goal
 Home Assistant running on the mini PC with everything the satellite needs: a fixed address, backups,
