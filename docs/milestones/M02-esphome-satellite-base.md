@@ -1,5 +1,5 @@
 # M02 — ESPHome satellite base
-Status: in review   Branch: `milestone/M02-satellite-base`   PR: to be added when the PR is opened
+Status: in review   Branch: `milestone/M02-satellite-base`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/4
 
 ## Goal
 The satellite runs ESPHome, talks to Home Assistant, and updates over Wi-Fi from now on.
