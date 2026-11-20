@@ -49,8 +49,21 @@ Recorded on 2026-11-19, before the steps below:
    after a power cut.
 2. **QEMU Guest Agent:** double-click it, tick **Use QEMU Guest Agent**, and click OK. Home Assistant OS
    already includes the agent; this only tells Proxmox to use it.
-3. The agent setting only takes effect after a full power cycle, not a reboot. Click **Shutdown** at
-   the top right, wait until the status reads *stopped*, then click **Start**.
+3. The agent setting only takes effect after a full power cycle, not a reboot. **Do not use Proxmox's
+   Shutdown button for this one.** Once the box is ticked, Proxmox tries to shut the VM down through
+   the agent, but the VM has not been restarted with the agent's connection yet, so the request fails
+   after a wait with `TASK ERROR: VM quit/powerdown failed - got timeout`. Shut down from inside Home
+   Assistant instead:
+   1. HA web UI → **Settings → System**, click the power icon at the top right, open **Advanced
+      options**, and choose **Shut down system**.
+   2. Proxmox web UI: wait until VM 102's status reads *stopped* (under a minute).
+   3. Click **Start**.
+
+   From then on, Proxmox's own Shutdown button works normally.
+
+   If Home Assistant's web page is not reachable, the fallback is to untick **Use QEMU Guest Agent**,
+   click **Shutdown** (it now works the old way), tick the box again while the VM is stopped, then
+   **Start**.
 
 Check: after a minute or two, the VM's **Summary** page shows IP addresses where it used to say
 "No Guest Agent configured".
