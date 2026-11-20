@@ -146,11 +146,18 @@ reservation does that without changing anything inside Home Assistant.
 
 1. **Find the VM's MAC address.** Proxmox web UI → VM 102 → **Hardware → Network Device**. It is the
    value that looks like `BC:24:11:xx:xx:xx`.
-2. **Reserve an address.** On the router (see the table at the top), open the DHCP settings, find the
-   reservation or "static lease" list, and add an entry for that MAC address. Reserving the address
-   the VM already has is the simplest choice.
-3. **Make the VM pick it up.** Proxmox web UI → VM 102 → **Reboot**.
-4. **Record the address** in your password manager, next to the Home Assistant login. Later milestones
+2. **Find the address the VM has now.** The reservation form asks for an IP address as well as the
+   MAC; use the one the VM already has, so nothing changes or conflicts. Any of these shows it:
+   - Proxmox web UI → VM 102 → **Summary → IPs** (needs the guest agent from section 2). Take the
+     IPv4 address that belongs to your home network, the one that starts like your other devices'
+     addresses (often `192.168.`). Ignore `127.0.0.1`, any `172.` addresses, and the long IPv6 ones.
+   - HA web UI → **Settings → System → Network**, under the network adapter's IPv4 details.
+   - The router's list of connected devices, on the row with the matching MAC address.
+3. **Reserve it.** On the router (see the table at the top), open the DHCP settings, find the
+   reservation or "static lease" list, and add an entry with that MAC address and that IP address.
+   Many routers offer a "reserve" button directly on the connected-devices row, which fills in both.
+4. **Make the VM pick it up.** Proxmox web UI → VM 102 → **Reboot**.
+5. **Record the address** in your password manager, next to the Home Assistant login. Later milestones
    put it in gitignored secrets files.
 
 Check: after the reboot, VM 102's **Summary** page shows the reserved address, and
