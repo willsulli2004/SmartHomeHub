@@ -18,7 +18,7 @@ substitutions:
   friendly_name: Satellite Hub
   # Shown in Home Assistant on the device page as "Firmware". Bump it for every
   # build that gets flashed, so the running build can be identified.
-  firmware_version: "0.2.7"
+  firmware_version: "0.2.8"
 
 esphome:
   name: ${name}
@@ -50,7 +50,13 @@ psram:
 # the port used for the first flash. After that, logs are read over Wi-Fi.
 logger:
   hardware_uart: USB_SERIAL_JTAG
-  level: DEBUG
+  # TEMPORARY (M2 debugging): verbose logging for the LED strip only.
+  # Restore to "level: DEBUG" with no initial_level or logs before merging.
+  level: VERBOSE
+  initial_level: DEBUG
+  logs:
+    light: VERBOSE
+    esp32_rmt_led_strip: VERBOSE
 
 # Encrypted connection to Home Assistant.
 api:

@@ -13,29 +13,24 @@
 #
 # Current limit (hardware constraint): the strip is the only load on its buck
 # converter (MPM3610), which can supply about 1.2 A. Each WS2812B pixel holds a
-# red, a green and a blue LED of about 20 mA each at full drive, so:
-#   one colour, all 71 pixels, full drive:   71 x 20 mA = 1.4 A
-#   white (all three), full drive:           71 x 60 mA = 4.3 A
+# red, a green and a blue LED of about 20 mA each at full drive, so 71 pixels
+# could ask for 1.4 A in one colour and 4.3 A in white.
 #
-# How the limit is kept (agreed with Will for M2):
-#   1. color_correct scales every channel to led_max_level in the driver.
-#   2. The scripts below only ever light ONE colour channel at a time.
-#   Worst case is then 71 x 20 mA x 0.70 = 1.0 A.
-#
-# This is NOT safe for white or mixed colours: white at this level would ask for
-# about 3 A. So the strip is internal (not adjustable from Home Assistant), and
-# anything added here must keep to one channel until M3 adds a limiter that
-# checks each frame. If led_count or led_max_level changes, keep
-#   led_count x 0.02 A x led_max_level  under 1.2 A.
+# power_estimation below is ESPHome's per-frame limiter. Before each frame goes
+# out it adds up the estimated draw (20 mA per colour per pixel, plus 1 mA idle
+# per pixel) and, if the total is over led_max_current_ma, scales the whole frame
+# down to fit. It applies to every colour, effect and write path, so no colour
+# can exceed the budget, including white.
 
 substitutions:
   led_count: "71"
-  led_max_level: "70%"
+  led_max_current_ma: "1000"
 
 light:
   - platform: esp32_rmt_led_strip
     id: status_light
-    internal: true
+    # TEMPORARY (M2 debugging): shown in Home Assistant for testing by hand.
+    name: Status Strip
     pin: GPIO41
     num_leds: ${led_count}
     # Bit timings copied from the Adafruit NeoPixel library, which drove this strip
@@ -47,11 +42,13 @@ light:
     bit1_low: 450ns
     reset_low: 300us
     channel_colors: GRB
-    # Keep the frame buffer in internal RAM; it is read from an interrupt.
-    # DMA (use_dma) is deliberately not used: in firmware 0.2.6 the strip stopped
-    # updating for good after the first voice reply with DMA enabled.
+    # DMA with room for a whole frame (71 x 24 bits + reset = 1705 symbols).
+    # Without DMA (firmware 0.2.7) the strip showed nothing at all.
+    use_dma: true
+    rmt_symbols: 1728
     use_psram: false
-    color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
+    power_estimation:
+      max_current_ma: ${led_max_current_ma}
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
 
