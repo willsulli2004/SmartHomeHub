@@ -1,0 +1,8 @@
+# Development tooling for the Smart Home Hub. Install into .venv (Python 3.12):
+#   py -3.12 -m venv .venv
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+#
+# ESPHome is pinned to an exact version so a tagged firmware (sat-hub-vN) can be
+# rebuilt with the same compiler it was first built with. Bump it on purpose, in
+# its own commit, and re-run the compile check.
+esphome==2026.11.0
