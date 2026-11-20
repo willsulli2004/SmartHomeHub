@@ -8,7 +8,7 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 ### Phase A — CpE417 demo (due December 1st, 2026)
 | # | Milestone | Target | Status |
 |---|---|---|---|
-| M0 | Repo and workflow | Nov 20 | planned |
+| M0 | Repo and workflow | Nov 20 | in review |
 | M1 | Home Assistant on Proxmox | Nov 21 | planned |
 | M2 | ESPHome satellite base | Nov 23 | planned |
 | M3 | Satellite controls and feedback | Nov 24 | planned |
@@ -42,7 +42,8 @@ extras and M6's analytics before cutting alarms or the robot link.
   - The repo layout from CLAUDE.md.
   - `firmware/satellite/secrets.example.yaml`.
   - Legacy Arduino tests in `tests/hardware/` (already copied in the initial commit).
-- **Tooling:** ESPHome CLI installed in `.venv`; `gh` authenticated for PRs.
+- **Tooling:** ESPHome CLI installed in `.venv` (Python 3.12, version pinned in `requirements-dev.txt`);
+  `gh` authenticated for PRs.
 - **Deploy docs:** the backup/rollback routine written up in `docs/setup/deploy.md`, including git tags
   for firmware versions (`sat-hub-vN`).
 - **Done when:** a test PR can be opened and merged, and the deploy doc is reviewed.
