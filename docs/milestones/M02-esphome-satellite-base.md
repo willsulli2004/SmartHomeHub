@@ -13,7 +13,8 @@ The satellite runs ESPHome, talks to Home Assistant, and updates over Wi-Fi from
 - `firmware/satellite/packages/voice.yaml` — new. On-device "Hey Jarvis" wake word and the voice
   assistant, with the microphone gain as one setting.
 - `firmware/satellite/packages/controls.yaml` — new. The GPIO45 mute button and the mute scripts.
-- `firmware/satellite/packages/leds.yaml` — new. A temporary status light on the devkit's onboard LED.
+- `firmware/satellite/packages/leds.yaml` — new. Solid status colours on the WS2812B strip, with a
+  driver-level brightness cap for the strip's current budget.
 - `firmware/satellite/secrets.example.yaml` — changed. The placeholder API key was all zeros, which
   ESPHome 2026.11 rejects; it is now an obviously fake non-zero key.
 - `docs/setup/deploy.md` — changed. Tag the tested branch commit before merge, the firmware version,
@@ -50,7 +51,7 @@ by reading the code and the config, not by measurement.
 | Mic I2S | BCLK 42, WS 1, DIN 2 |
 | DAC I2S | BCK 39, WS 40, DOUT 38 |
 | Mute button | GPIO45, input, internal pull-up only, `ignore_strapping_warning: true` |
-| Status light | GPIO48 (onboard RGB LED) |
+| LED strip (status colours) | GPIO41, 30 LEDs, every channel capped at 50% |
 
 ## How it connects to the rest of the project
 This is layer 1 of the architecture, the device.
@@ -123,20 +124,21 @@ All commands run in the PC terminal, in the repo folder. See `docs/setup/deploy.
 Claude cannot hear the speaker or see the LED. Pass criteria are in bold.
 
 **1. Boot and connection.** After the flash, the device page in Home Assistant shows the satellite as
-online. **Pass: Firmware reads `0.2.0 (ESPHome 2026.11.0)`, and the entities Media Player and Mute
-exist.**
+online. **Pass: Firmware reads the version just flashed, for example `0.2.2 (ESPHome 2026.11.0)`, the
+entities Media Player and Mute exist, the strip is off, and there is no hum from the speaker when
+idle, including before the first question.**
 
-**2. Wake word and answer.** From about one metre, say "Hey Jarvis", wait for the blue light, then ask
-"what time is it?". **Pass: the light turns blue on the wake word, green while it works, the time is
-spoken through the speaker, and the light goes off.** Expected log lines include
+**2. Wake word and answer.** From about one metre, say "Hey Jarvis", wait for the strip to turn blue, then ask
+"what time is it?". **Pass: the strip turns blue on the wake word, green while it works, the time is
+spoken through the speaker, and the strip goes off.** Expected log lines include
 `Detected 'Hey Jarvis'` and voice assistant state changes ending in idle.
 
 **3. Far-field pickup.** Repeat test 2 from across the room at a normal speaking volume. **Pass: it
 works at least 4 times out of 5.** If it misses, or if close speech is misheard, note which; the fix
 is `mic_gain_factor` in `packages/voice.yaml`.
 
-**4. Mute.** Latch the mute button. **Pass: the light shows dim red, the Mute entity in Home Assistant
-turns on, and "Hey Jarvis" gets no reaction at all.** Unlatch it. **Pass: the light goes off, Mute
+**4. Mute.** Latch the mute button. **Pass: the strip shows dim red, the Mute entity in Home Assistant
+turns on, and "Hey Jarvis" gets no reaction at all.** Unlatch it. **Pass: the strip goes off, Mute
 turns off, and test 2 works again.** Also latch it in the middle of a question: **the conversation
 stops.**
 
@@ -170,8 +172,14 @@ Checks Claude ran on this branch, using a temporary copy with the example secret
 ## Deviations from the plan
 - **The speaker cap is `volume_max: 0.87`, not 0.5.** ESPHome's volume scale is in decibels, so 0.87 is
   what gives −6.4 dBFS. See "Speaker level cap" above.
-- **A temporary status light was added** on the onboard LED (GPIO48), agreed with Will, because M2 has
-  no other feedback. M3 replaces it.
+- **Status colours on the LED strip were added**, pulling a small part of M3 forward. The first build
+  used the devkit's onboard LED, but the strip is what Will watches, and leaving the strip undriven
+  let its data line float: it lit white from audio-output noise. The firmware now always drives the
+  strip and caps every channel at 50% (worst case 0.9 A against the 1.2 A budget). M3 still owns the
+  full set of states, animations and the encoder pixel.
+- **The I2S output never stops.** ESPHome's default stops it 500 ms after a sound, which made the amp
+  hum when idle. `timeout: never` plus a keep-alive script keeps it sending silence, as the Arduino
+  speaker test did.
 - **A firmware version was added**, so the OTA and rollback tests can show which build is running.
 - **`sat-hub-v1` is tagged on the branch before merge**, not after, because the rollback test needs it.
 - **The example API key changed**, because ESPHome rejects an all-zero key.
