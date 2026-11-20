@@ -9,8 +9,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | # | Milestone | Target | Status |
 |---|---|---|---|
 | M0 | Repo and workflow | Nov 20 | merged |
-| M1 | Home Assistant on Proxmox | Nov 21 | in review |
-| M2 | ESPHome satellite base | Nov 23 | planned |
+| M1 | Home Assistant on Proxmox | Nov 21 | merged |
+| M2 | ESPHome satellite base | Nov 23 | in review |
 | M3 | Satellite controls and feedback | Nov 24 | planned |
 | M4 | Core voice | Nov 25 | planned |
 | M5 | Alarms | Nov 27 | planned |
@@ -208,6 +208,8 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 ---
 
 ## Backlog
+- Demo mode: the satellite opens its own hotspot and serves a simple web page for showing off features
+  from a phone, without the home network (asked for during M2; a candidate for M7 if time allows)
 - Custom wake word (train a model for the hub's own name)
 - Automatic deploy on merge via the mini PC over Tailscale
 - Echo cancellation and ducking
