@@ -11,25 +11,23 @@
 # The strip must always be driven by the firmware. Left undriven, its data line
 # floats and picks up noise from the audio output, which lights it at random.
 #
-# Current limit (hardware constraint): the strip is the only load on its buck
-# converter (MPM3610), which can supply about 1.2 A. Each WS2812B pixel holds a
-# red, a green and a blue LED of about 20 mA each at full drive, so 71 pixels
-# could ask for 1.4 A in one colour and 4.3 A in white.
-#
-# power_estimation below is ESPHome's per-frame limiter. Before each frame goes
-# out it adds up the estimated draw (20 mA per colour per pixel, plus 1 mA idle
-# per pixel) and, if the total is over led_max_current_ma, scales the whole frame
-# down to fit. It applies to every colour, effect and write path, so no colour
-# can exceed the budget, including white.
+# Current limit (hardware constraint): the strip has its own buck with a budget of
+# about 1.2 A. A WS2812B draws about 60 mA at full white, so 30 LEDs could draw
+# 1.8 A, and this strip has 60 (the count used in the Arduino all-components test).
+# color_correct below scales every channel to 25%, in the driver, for every colour
+# and effect: worst case 60 x 60 mA x 0.25 = 0.9 A.
+# The status colours light one channel only and draw about 0.3 A at most.
+# If led_count is raised, lower led_max_level so that
+#   led_count x 0.06 A x led_max_level stays under 1.2 A.
 
 substitutions:
-  led_count: "71"
-  led_max_current_ma: "1000"
+  led_count: "60"
+  led_max_level: "25%"
 
 light:
   - platform: esp32_rmt_led_strip
     id: status_light
-    # TEMPORARY (M2 debugging): shown in Home Assistant for testing by hand.
+    # TEMPORARY: shown in Home Assistant so the strip can be tested by hand.
     name: Status Strip
     pin: GPIO41
     num_leds: ${led_count}
@@ -42,13 +40,15 @@ light:
     bit1_low: 450ns
     reset_low: 300us
     channel_colors: GRB
-    # DMA with room for a whole frame (71 x 24 bits + reset = 1705 symbols).
-    # Without DMA (firmware 0.2.7) the strip showed nothing at all.
+    # Send each frame by DMA from internal RAM, with room for the whole frame
+    # (60 LEDs x 24 bits = 1440 symbols). Without this the driver holds only 192
+    # symbols (8 LEDs) and refills the rest from an interrupt. With audio, Wi-Fi
+    # and wake word detection running, those refills arrive late, the frame is cut
+    # short, and the strip latches garbage on its first few LEDs.
     use_dma: true
-    rmt_symbols: 1728
+    rmt_symbols: 1536
     use_psram: false
-    power_estimation:
-      max_current_ma: ${led_max_current_ma}
+    color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
 
@@ -83,7 +83,7 @@ script:
           then:
             - light.turn_on:
                 id: status_light
-                brightness: 60%
+                brightness: 40%
                 red: 100%
                 green: 0%
                 blue: 0%

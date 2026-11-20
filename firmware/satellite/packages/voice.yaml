@@ -56,6 +56,15 @@ voice_assistant:
   on_stt_end:
     - script.execute: status_light_busy
   on_end:
+    # "End" fires when Home Assistant finishes its part, which is before the
+    # reply has been spoken. Wait for the reply to finish playing so the strip
+    # stays green while the satellite talks. (Turning it off straight away also
+    # sent two LED frames 4 ms apart.)
+    - wait_until:
+        condition:
+          not:
+            voice_assistant.is_running:
+        timeout: 30s
     - script.execute: status_light_idle
   on_error:
     - script.execute: status_light_idle
