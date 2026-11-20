@@ -67,6 +67,27 @@ speaker:
     # The hum is not fixable in firmware alone. The planned fix is the amp's MUTE
     # pin (see docs/milestones/M02-esphome-satellite-base.md).
 
+script:
+  # Lowers the drive strength of the three DAC signal pins from the default
+  # (about 20 mA) to the weakest setting (about 5 mA). Weaker drive means slower
+  # signal edges, and slower edges couple far less interference into neighbouring
+  # wires. The LED strip's data wire (GPIO41) sits right beside these pins, and the
+  # strip froze on its last colour every time the speaker played (0.2.6 - 0.2.10).
+  # 5 mA is ample for the short wires to the DAC.
+  - id: soften_dac_signals
+    mode: restart
+    then:
+      - lambda: |-
+          gpio_set_drive_capability(GPIO_NUM_38, GPIO_DRIVE_CAP_0);
+          gpio_set_drive_capability(GPIO_NUM_39, GPIO_DRIVE_CAP_0);
+          gpio_set_drive_capability(GPIO_NUM_40, GPIO_DRIVE_CAP_0);
+
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - script.execute: soften_dac_signals
+
 media_player:
   # The only route to the speaker. Voice replies use it now; the volume knob (M3)
   # and alarms (M5) will use it too, so all of them inherit the cap.

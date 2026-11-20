@@ -53,6 +53,8 @@ voice_assistant:
     - micro_wake_word.stop:
   on_listening:
     - script.execute: status_light_listening
+    # Re-apply before every reply, in case setting up the audio output resets it.
+    - script.execute: soften_dac_signals
   on_stt_end:
     - script.execute: status_light_busy
   on_end:
