@@ -1,21 +1,37 @@
-# LEDs: a temporary status light on the devkit's onboard RGB LED (GPIO48).
+# LEDs: status colours on the WS2812B strip (DATA on GPIO41).
 #
-# This exists so M2 can be tested without watching the log. M3 replaces it with
-# the real LED states on the WS2812B strip and the encoder's pixel.
+# M2 only shows a solid colour per state. M3 adds the full set of LED states and
+# animations and the encoder's pixel.
 #
 #   off         idle, waiting for the wake word
 #   blue        wake word heard, listening
 #   green       thinking / speaking
 #   dim red     muted
+#
+# The strip must always be driven by the firmware. Left undriven, its data line
+# floats and picks up noise from the audio output, which lights it at random.
+#
+# Current limit (hardware constraint): the strip has its own buck with a budget of
+# about 1.2 A. A WS2812B draws about 60 mA at full white, so 30 LEDs could draw
+# 1.8 A. color_correct below scales every channel to 50%, in the driver, for every
+# colour and effect: worst case 30 x 60 mA x 0.5 = 0.9 A. The status colours use
+# one channel at reduced brightness and draw far less (about 0.1 A).
+# If led_count is raised, lower led_max_level so that
+#   led_count x 0.06 A x led_max_level stays under 1.2 A.
+
+substitutions:
+  led_count: "30"
+  led_max_level: "50%"
 
 light:
   - platform: esp32_rmt_led_strip
     id: status_light
     internal: true
-    pin: GPIO48
-    num_leds: 1
+    pin: GPIO41
+    num_leds: ${led_count}
     chipset: WS2812
     channel_colors: GRB
+    color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
 
@@ -25,7 +41,7 @@ script:
     then:
       - light.turn_on:
           id: status_light
-          brightness: 40%
+          brightness: 60%
           red: 0%
           green: 0%
           blue: 100%
@@ -35,7 +51,7 @@ script:
     then:
       - light.turn_on:
           id: status_light
-          brightness: 40%
+          brightness: 60%
           red: 0%
           green: 100%
           blue: 0%
@@ -50,9 +66,17 @@ script:
           then:
             - light.turn_on:
                 id: status_light
-                brightness: 25%
+                brightness: 40%
                 red: 100%
                 green: 0%
                 blue: 0%
           else:
             - light.turn_off: status_light
+
+esphome:
+  on_boot:
+    # Write the resting state once at start-up so the strip is driven from the
+    # beginning and clears anything it latched while the chip was booting.
+    - priority: -100
+      then:
+        - script.execute: status_light_idle

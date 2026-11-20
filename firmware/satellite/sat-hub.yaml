@@ -5,7 +5,7 @@
 #   packages/audio.yaml     mic, DAC/amp output, media player, speaker level cap
 #   packages/voice.yaml     "Hey Jarvis" wake word and the voice assistant
 #   packages/controls.yaml  mute button
-#   packages/leds.yaml      onboard status light (temporary until M3)
+#   packages/leds.yaml      status colours on the LED strip
 #
 # Build:  esphome compile firmware/satellite/sat-hub.yaml
 # Flash:  see docs/setup/deploy.md
@@ -18,7 +18,7 @@ substitutions:
   friendly_name: Satellite Hub
   # Shown in Home Assistant on the device page as "Firmware". Bump it for every
   # build that gets flashed, so the running build can be identified.
-  firmware_version: "0.2.1"
+  firmware_version: "0.2.2"
 
 esphome:
   name: ${name}
