@@ -75,8 +75,12 @@ Do both parts before every update, even a small one.
 3. Wait until it finishes, then **download a copy** to another machine. A backup that lives only on
    the Home Assistant VM does not survive losing the VM.
 
-M1 adds the specifics for this install (automatic backups, where copies are kept, the Proxmox VM
-snapshot as a second safety net) in `docs/setup/home-assistant.md`.
+Two more layers run on their own and are set up in [home-assistant.md](home-assistant.md#3-backups):
+Home Assistant's automatic backups (kept on the VM) and a weekly Proxmox backup of the whole VM (kept
+on the mini PC). Neither replaces the downloaded copy above, because both live on the mini PC's disk.
+
+Restoring a backup needs the **backup encryption key** from your password manager. Check that it is
+there before relying on any backup.
 
 ### Satellite firmware
 
@@ -91,14 +95,26 @@ exact commit it was built from.
    git tag --list "sat-hub-v*" --sort=-v:refname
    ```
 
-2. If the running firmware has no tag yet, tag its commit and push the tag before going further:
+2. If the running firmware has no tag yet, tag its commit and push the tag before going further.
+
+   The two commands below are an **example to adapt, not to run as written**. Change three things:
+   - `sat-hub-v1`: the next free version number.
+   - `a1b2c3d`: the hash of the commit the firmware was built from. Find it with
+     `git log --oneline`.
+   - the text in quotes: one line on what this firmware does.
 
    ```powershell
-   git tag -a sat-hub-vN <commit> -m "Satellite firmware vN: <what it does>"
+   git tag -a sat-hub-v1 a1b2c3d -m "Satellite firmware v1: ESPHome base, wake word, mute"
    ```
    ```powershell
-   git push origin sat-hub-vN
+   git push origin sat-hub-v1
    ```
+
+**Before M2 there is nothing to tag.** No ESPHome firmware exists until M2's first flash, so skip this
+whole "Satellite firmware" part until then.
+
+Throughout this doc, `sat-hub-vN` in running text means "the tag with the right number", for example
+`sat-hub-v3`. Wherever a command needs a value of yours, the step says so.
 
 Tag rules:
 - `N` counts up by one for every firmware that gets flashed and kept. The first is `sat-hub-v1` (M2).
@@ -168,10 +184,10 @@ the PR, including failures and anything that looked odd.
 
 **Where:** PC terminal, in the repo folder.
 
-1. Check out the last good tag:
+1. Check out the last good tag. Replace `sat-hub-v1` with that tag's real name:
 
    ```powershell
-   git checkout sat-hub-vN
+   git checkout sat-hub-v1
    ```
 
 2. Install the tool versions that tag was built with:
@@ -186,19 +202,25 @@ the PR, including failures and anything that looked odd.
    .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
    ```
 
-4. Return to the working branch:
+4. Return to the branch you were working on. Replace `main` with its name if it was a milestone
+   branch:
 
    ```powershell
-   git checkout <branch>
+   git checkout main
    ```
 
 ### Home Assistant
 
 **Where:** HA web UI.
 
-1. Open **Settings → System → Backups** and pick the backup taken in step 1.
+1. Open **Settings → System → Backups** and pick the backup taken in step 1. If it is no longer listed,
+   upload the copy you downloaded.
 2. Restore it. Choose a full restore unless the milestone doc names the specific parts to restore.
+   Enter the backup encryption key if asked.
 3. Wait for Home Assistant to restart, then confirm the satellite reconnects.
+
+If Home Assistant will not start at all, restore the whole VM from the weekly Proxmox backup instead.
+See [home-assistant.md](home-assistant.md#restoring).
 
 ### Last resort: USB
 
@@ -224,7 +246,7 @@ Hard rules still apply during recovery: nothing may pull GPIO45 high, and USB-C 
 |---|---|---|
 | HA backup | HA web UI | Settings → System → Backups → full backup, then download |
 | List firmware tags | PC terminal | `git tag --list "sat-hub-v*" --sort=-v:refname` |
-| Tag firmware | PC terminal | `git tag -a sat-hub-vN <commit> -m "..."` then `git push origin sat-hub-vN` |
+| Tag firmware | PC terminal | see the worked example under "Satellite firmware"; fill in the version, commit and message |
 | Compile | PC terminal | `.\.venv\Scripts\esphome.exe compile firmware/satellite/sat-hub.yaml` |
 | OTA flash | PC terminal | `.\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local` |
 | Roll back firmware | PC terminal | `git checkout sat-hub-vN`, reinstall requirements, OTA flash |
