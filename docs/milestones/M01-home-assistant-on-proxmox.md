@@ -27,7 +27,7 @@ Will carries out.
 ## How it connects to the rest of the project
 This is layer 2 of the architecture, the Home Assistant side that everything else talks to.
 
-- **M2** points the satellite at this Home Assistant and its `Jarvis` Assist pipeline. The satellite's
+- **M2** points the satellite at this Home Assistant and its `Jewel` Assist pipeline. The satellite's
   secrets file gets the fixed address reserved here.
 - **M4** changes the pipeline's conversation agent to add Claude for general questions.
 - **M5 and M6** publish and subscribe on the Mosquitto broker. The robot uses the `alarmbot` login and
@@ -44,7 +44,7 @@ Nothing is flashed. All changes are made by Will in the Proxmox and Home Assista
    download it. This is before any add-on is installed, so it is the clean rollback point.
 2. Follow `docs/setup/home-assistant.md` sections 2 to 10 in order.
 
-Roll back: restore that backup, or uninstall the three add-ons and delete the `Jarvis` assistant.
+Roll back: restore that backup, or uninstall the three add-ons and delete the `Jewel` assistant.
 
 ## How to test
 The checklist is section 11 of `docs/setup/home-assistant.md`. Pass criteria, from the milestone's
@@ -59,11 +59,15 @@ done-when list:
 5. **Backups:** an automatic backup and `M01-baseline` exist, `M01-baseline` is on the PC, the Proxmox
    job has produced a file, and the encryption key is saved.
 
+**Result:** Will followed the guide on 2026-11-20 and reported that every test in section 11 passed.
+
 Checks Claude ran on this branch:
 - Every relative link and section anchor in the changed docs resolves.
 - No IP address, password or key appears in any changed file.
-- Not run: any step of the guide. Claude has no access to Proxmox or Home Assistant, so the guide is
-  untested until Will follows it.
+- From the development PC: `homeassistant.local` resolves to the VM, and port 80 serves a page titled
+  "Home Assistant".
+- Claude has no access to Proxmox or Home Assistant, so the section 11 results are Will's report, not
+  something Claude observed.
 
 ## Deviations from the plan
 - **The install already existed.** The milestone plan had Will installing Home Assistant OS from the
@@ -75,10 +79,20 @@ Checks Claude ran on this branch:
   no NAS decision yet.
 - **Carried over from M0:** the M0 status update and the `deploy.md` placeholder fix.
 
+Corrections made while Will followed the guide:
+- **Guest agent shutdown.** The guide said to use Proxmox's Shutdown button right after enabling the
+  agent, which fails with a powerdown timeout. It now says to shut down from inside Home Assistant.
+- **Which IP to reserve.** Section 4 now explains where to find the VM's current address.
+- **Port 80.** This install serves its web page on port 80, not 8123. The guide's addresses were
+  changed and the difference is explained. Why the port is 80 is not known.
+- **Assistant name.** The Assist pipeline is named `Jewel`, not `Jarvis`. The wake word is unaffected.
+
 ## Known limitations / follow-ups
-- **The guide is written without sight of the live system.** Menu names follow current Home Assistant
-  and Proxmox 9; small differences are likely. Will's notes from the run get folded back in on this
-  branch before merge.
+- **The guide was written without sight of the live system.** The problems Will hit are fixed, but
+  steps that worked despite a slightly different menu name were not reported and may still be
+  imprecise.
+- **The web page is on port 80 for an unknown reason.** It works, but M2 and later should not assume
+  8123 anywhere, and the setting is worth tracing if it ever causes trouble.
 - **The three MQTT logins are not proven until M6.** The M1 test only exercises Home Assistant's own
   connection.
 - **Both automatic backup layers live on the mini PC's disk.** Only the manual download survives that

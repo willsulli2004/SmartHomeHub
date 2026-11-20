@@ -11,9 +11,15 @@ rebuilding after a failure.
 | Label | Where that is |
 |---|---|
 | **Proxmox web UI** | The Proxmox page in a browser, signed in as `root`. The Home Assistant VM is **102 (homeassistant)** on node **pve**. |
-| **HA web UI** | Home Assistant in a browser at `http://homeassistant.local:8123`, signed in as the owner. If that name does not load, use the VM's IP address instead. |
+| **HA web UI** | Home Assistant in a browser at `http://homeassistant.local`, signed in as the owner. If that name does not load, use `http://` plus the VM's IP address instead. |
 | **Router** | The admin page of whatever hands out IP addresses on the network. That is normally the router; if the Pi-hole runs DHCP, it is the Pi-hole's admin page. |
 | **Phone** | The Home Assistant Companion app. |
+
+**This install serves its web page on port 80, not Home Assistant's usual 8123.** That is why the
+address above has no `:8123` on the end, and why adding it gives a page that does not load. Guides
+and tools elsewhere assume 8123; wherever they ask for the Home Assistant URL, give the address
+without a port. This only affects the web page and the Companion app. The satellite talks to Home
+Assistant on a different port of its own and is not affected.
 
 Nothing in this guide is typed in a terminal, except the rebuild commands in section 12.
 
@@ -34,12 +40,17 @@ Recorded on 2026-11-19, before the steps below:
 | Host | Mini PC running Proxmox VE 9.2, node `pve` |
 | VM | 102 `homeassistant`, 4 CPU cores, 8 GiB RAM, 64 GiB boot disk |
 | Install type | Home Assistant OS (supports add-ons) |
+| Web page port | 80 (the default is 8123; found on 2026-11-20, origin of the setting not known) |
 | Other guests on the host | 100 `PiHole`, 101 `tracker` |
 | Automatic backups in Home Assistant | on |
 | QEMU guest agent | not enabled (section 2 fixes this) |
 | Fixed IP | not set (section 4) |
 | Mosquitto, Whisper, Piper, Assist pipeline | not set up (sections 6 to 9) |
 | Devices, integrations, cloud login | none |
+
+Sections 2 to 10 were completed on 2026-11-20 and the section 11 checklist passed. The VM now has the
+guest agent, a reserved address, three backup layers, Mosquitto with its three logins, Whisper, Piper,
+and the `Jewel` assistant.
 
 ## 2. Proxmox settings for the VM
 
@@ -49,8 +60,21 @@ Recorded on 2026-11-19, before the steps below:
    after a power cut.
 2. **QEMU Guest Agent:** double-click it, tick **Use QEMU Guest Agent**, and click OK. Home Assistant OS
    already includes the agent; this only tells Proxmox to use it.
-3. The agent setting only takes effect after a full power cycle, not a reboot. Click **Shutdown** at
-   the top right, wait until the status reads *stopped*, then click **Start**.
+3. The agent setting only takes effect after a full power cycle, not a reboot. **Do not use Proxmox's
+   Shutdown button for this one.** Once the box is ticked, Proxmox tries to shut the VM down through
+   the agent, but the VM has not been restarted with the agent's connection yet, so the request fails
+   after a wait with `TASK ERROR: VM quit/powerdown failed - got timeout`. Shut down from inside Home
+   Assistant instead:
+   1. HA web UI → **Settings → System**, click the power icon at the top right, open **Advanced
+      options**, and choose **Shut down system**.
+   2. Proxmox web UI: wait until VM 102's status reads *stopped* (under a minute).
+   3. Click **Start**.
+
+   From then on, Proxmox's own Shutdown button works normally.
+
+   If Home Assistant's web page is not reachable, the fallback is to untick **Use QEMU Guest Agent**,
+   click **Shutdown** (it now works the old way), tick the box again while the VM is stopped, then
+   **Start**.
 
 Check: after a minute or two, the VM's **Summary** page shows IP addresses where it used to say
 "No Guest Agent configured".
@@ -133,15 +157,23 @@ reservation does that without changing anything inside Home Assistant.
 
 1. **Find the VM's MAC address.** Proxmox web UI → VM 102 → **Hardware → Network Device**. It is the
    value that looks like `BC:24:11:xx:xx:xx`.
-2. **Reserve an address.** On the router (see the table at the top), open the DHCP settings, find the
-   reservation or "static lease" list, and add an entry for that MAC address. Reserving the address
-   the VM already has is the simplest choice.
-3. **Make the VM pick it up.** Proxmox web UI → VM 102 → **Reboot**.
-4. **Record the address** in your password manager, next to the Home Assistant login. Later milestones
+2. **Find the address the VM has now.** The reservation form asks for an IP address as well as the
+   MAC; use the one the VM already has, so nothing changes or conflicts. Any of these shows it:
+   - Proxmox web UI → VM 102 → **Summary → IPs** (needs the guest agent from section 2). Take the
+     IPv4 address that belongs to your home network, the one that starts like your other devices'
+     addresses (often `192.168.`). Ignore `127.0.0.1`, any `172.` addresses, and the long IPv6 ones.
+   - HA web UI → **Settings → System → Network**, under the network adapter's IPv4 details.
+   - The router's list of connected devices, on the row with the matching MAC address.
+3. **Reserve it.** On the router (see the table at the top), open the DHCP settings, find the
+   reservation or "static lease" list, and add an entry with that MAC address and that IP address.
+   Many routers offer a "reserve" button directly on the connected-devices row, which fills in both.
+4. **Make the VM pick it up.** Proxmox web UI → VM 102 → **Reboot**.
+5. **Record the address** in your password manager, next to the Home Assistant login. Later milestones
    put it in gitignored secrets files.
 
 Check: after the reboot, VM 102's **Summary** page shows the reserved address, and
-`http://homeassistant.local:8123` still loads.
+`http://homeassistant.local` still loads. Home Assistant needs two or three minutes after a reboot
+before the page answers.
 
 Do not also set a static address inside Home Assistant. One source of truth, the reservation, is
 easier to change later.
@@ -255,7 +287,8 @@ Check: **Wyoming Protocol** in the integrations list now shows two entries, Whis
 
 1. Click **Add assistant**.
 2. Fill it in:
-   - **Name:** `Jarvis`
+   - **Name:** `Jewel`. This is only a label in Home Assistant's menus and can be anything. It is
+     not the wake word; "Hey Jarvis" is set in the satellite's firmware (M2).
    - **Language:** English
    - **Conversation agent:** Home Assistant
    - **Speech-to-text:** faster-whisper, language English
@@ -272,7 +305,7 @@ Trying voices is quick and does not involve the add-on page.
 
 **To change the main voice**
 
-1. HA web UI → **Settings → Voice assistants →** click **Jarvis**.
+1. HA web UI → **Settings → Voice assistants →** click **Jewel**.
 2. In the **Text-to-speech** section, pick a different **Language** and **Voice**. Each voice comes in
    up to three quality levels: `low`, `medium`, `high`. `medium` is the usual balance; `high` sounds
    better and takes longer to start speaking.
@@ -284,11 +317,11 @@ kept on disk.
 
 **To compare voices side by side**
 
-1. Add a second assistant named `Voice test`, with the same settings as Jarvis.
+1. Add a second assistant named `Voice test`, with the same settings as Jewel.
 2. Change only its voice.
 3. In the Assist dialog, switch between assistants with the name shown at the top.
 
-This leaves Jarvis, the preferred assistant the satellite will use, untouched until you decide.
+This leaves Jewel, the preferred assistant the satellite will use, untouched until you decide.
 
 Samples of every voice can be heard on the Piper project's voice samples page; search for
 "Piper voice samples". Voices to try for a Jarvis feel: `en_GB-alan-medium`,
@@ -310,7 +343,7 @@ Whisper and Piper add-ons are all running (**Settings → Add-ons**) without bei
 
 ### 11.2 Typed command
 1. HA web UI → click the **Assist** icon at the top right of the dashboard.
-2. Check the assistant shown is **Jarvis**.
+2. Check the assistant shown is **Jewel**.
 3. Type `what time is it` and press Enter.
 
 Pass: it answers with the current time.
@@ -319,14 +352,14 @@ Pass: it answers with the current time.
 A browser will not open the microphone on a plain `http://` page, so this test uses the phone.
 
 1. On the phone, install the **Home Assistant** Companion app, on the same Wi-Fi as the mini PC.
-2. Let it find the server, or enter `http://homeassistant.local:8123` by hand. Sign in.
+2. Let it find the server, or enter `http://homeassistant.local` by hand. Sign in.
 3. When it asks about location and sensor sharing, decline. They are not needed.
-4. Open **Assist** in the app, check the assistant is **Jarvis**, tap the microphone, allow microphone
+4. Open **Assist** in the app, check the assistant is **Jewel**, tap the microphone, allow microphone
    access, and say "what time is it".
 
 Pass: your words appear as text, and the answer is spoken in the chosen voice.
 
-To see timings: HA web UI → **Settings → Voice assistants →** the three dots on Jarvis → **Debug**.
+To see timings: HA web UI → **Settings → Voice assistants →** the three dots on Jewel → **Debug**.
 The last run shows how long speech-to-text and text-to-speech each took.
 
 The app connects straight to Home Assistant on the local network. Its push notifications would travel
@@ -401,7 +434,8 @@ the original VM 102 may have been created differently, and this path has not bee
    qm start 102
    ```
 
-5. Open `http://homeassistant.local:8123`. On the welcome screen choose **Restore from backup**, upload
+5. Open `http://homeassistant.local:8123`. A brand-new install uses port 8123; the restore brings
+   back this install's port 80 setting, so drop the `:8123` afterwards. On the welcome screen choose **Restore from backup**, upload
    the downloaded backup file, and enter the encryption key. A full restore brings back the add-ons,
    their settings, the MQTT logins and the Assist pipeline.
 
