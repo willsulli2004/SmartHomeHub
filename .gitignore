@@ -1,0 +1,29 @@
+# Secrets: never commit
+secrets.yaml
+HubSecrets.h
+.env
+*.env
+!*.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# ESPHome build output
+.esphome/
+**/.esphome/
+.pioenvs/
+.piolibdeps/
+
+# Arduino / firmware build output (binaries contain credentials in plain text)
+build/
+*.bin
+*.elf
+*.map
+
+# IDE
+.idea/
+.vscode/

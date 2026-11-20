@@ -1,0 +1,197 @@
+# CLAUDE.md — Smart Home Hub
+
+## Project
+The Smart Home Hub is the start of Will's local-first, Jarvis-style smart home on Home Assistant. Its
+first device is a voice satellite (ESP32-S3) that controls the home, answers questions, sets timers and
+alarms, and will later run custom plugins (games, sports updates, proactive announcements).
+
+- **Courses:** this is Will's independent study at UNLV and part of his CpE417 final project, which is
+  **due December 1st, 2026**. Until then, Phase A in `docs/MILESTONES.md` is the critical path; stay
+  inside the current milestone's scope.
+- **CpE417 robot:** the final project pairs the hub with an alarm robot that talks to it over MQTT. The
+  robot's software is built separately; this repo owns the hub side and the robot setup guide
+  (`docs/robot-integration.md`).
+- **Privacy:**
+  - All audio, speech processing and data stay on the home network.
+  - No public cloud services, with one approved exception: the text of a question (never audio) may go
+    to the Claude API for answering.
+- **Camera:** out of scope for now. Do not add camera code.
+
+## Architecture
+1. **Satellite:** ESPHome firmware with Will's own C++ external components where needed (encoder, LED
+   states, alarm ringing). It handles on-device wake word ("Hey Jarvis"), mic and speaker audio, LEDs,
+   the volume knob and the mute button. Updates go over the air (OTA).
+2. **Home Assistant (HAOS VM on Proxmox, mini PC):**
+   - voice pipeline: Whisper STT and Piper TTS (Wyoming), plus a conversation agent
+   - device control, timers and automations
+   - Mosquitto MQTT broker
+   - dashboards
+3. **Local services (Python, in this repo):**
+   - Phase A: `services/alarm-analytics/` processes robot telemetry and publishes results to HA over MQTT.
+   - Phase B: `jarvis-core/` is Will's own conversation agent and plugin platform.
+
+Follow Will's four-layer design: devices → HA entities → reusable scripts → semantic events → pluggable
+triggers. New features fire or consume semantic events instead of wiring triggers straight to devices.
+
+## How to work with Will
+
+### Before every milestone
+1. Read `docs/MILESTONES.md` and the docs of completed milestones in `docs/milestones/`.
+2. Restate the plan:
+   - the goal
+   - what is in and out of scope
+   - the files you expect to add or change
+   - how it connects to existing parts and the greater project
+   - how it will be tested
+3. Ask Will about every loose end, open question or assumption.
+4. **Do not write code until Will confirms the plan.**
+
+### During a milestone
+- Branch `milestone/MNN-short-name` off the latest `main`. Never commit to `main`; never force-push.
+- Make small, focused commits with imperative messages.
+- If something forces a change to the agreed plan, stop and ask instead of improvising.
+- Ask before adding any new library, ESPHome external component, HA add-on or other dependency.
+
+### After every milestone
+1. Run the checks in Testing.
+2. Write `docs/milestones/MNN-short-name.md` (template below).
+3. Update the milestone's status in `docs/MILESTONES.md`. You may edit `docs/MILESTONES.md` whenever
+   needed; call out significant changes in the PR.
+4. Open a PR with `gh pr create`:
+   - **title:** `MNN: <name>`
+   - **body:** summary, link to the milestone doc, the backup + OTA + test steps, open questions
+5. Stop and wait. Will backs up, flashes, tests on hardware, reviews and merges. **Never merge a PR
+   yourself.** If testing finds a problem, fix it on the same branch.
+
+### Milestone doc template
+    # MNN — <name>
+    Status: <planned | in progress | in review | merged>   Branch: <branch>   PR: <link>
+
+    ## Goal
+    ## What was built
+    One entry per file added or changed: path — what changed and why.
+    ## How it connects to the rest of the project
+    Which parts it uses or provides, data flow, and where it sits in the architecture.
+    ## How to deploy
+    Backup steps, then the exact OTA or install commands.
+    ## How to test
+    Hardware checklist for Will, with expected logs or HA behavior and pass criteria.
+    ## Deviations from the plan
+    ## Known limitations / follow-ups
+
+## Deploy flow: backup, update, test
+Will's routine for every milestone that changes the satellite or Home Assistant:
+1. **Back up:**
+   - Take a full Home Assistant backup.
+   - Make sure the currently running firmware is tagged in git (`sat-hub-vN`) so it can be rebuilt.
+2. **Update:** OTA-flash the satellite and/or apply the HA changes.
+3. **Test:** run the milestone's checklist.
+4. **Roll back if needed:** check out the previous tag and OTA it, or restore the HA backup. USB flashing
+   is the last-resort recovery.
+
+**Claude never flashes the satellite or changes the live Home Assistant instance.** It compiles, then
+gives Will the exact commands to run. Will may change this rule later.
+
+## Testing
+Claude cannot hear the speaker or see the LEDs. Hardware verification is Will's job, and every PR needs
+an explicit test checklist.
+
+- **ESPHome compile check:** `esphome compile firmware/satellite/sat-hub.yaml`. For CI-style checks without
+  real secrets, use `firmware/satellite/secrets.example.yaml` copied to a temp location; never create or
+  edit the real `secrets.yaml`.
+- **OTA command for Will:** `esphome run firmware/satellite/sat-hub.yaml --device sat-hub.local`.
+  Use the satellite's IP address if mDNS fails.
+- **Python:** `pytest` for every service and plugin. Logic must be testable without hardware: mock MQTT,
+  fake HA responses, the mock robot. Jarvis Core gets a text console (Phase B) so conversations can be
+  tested by typing.
+- **Legacy Arduino component tests** live in `tests/hardware/arduino/` and are kept as reference for
+  re-checking hardware. Compile them with `arduino-cli` if needed:
+
+      arduino-cli compile --fqbn "esp32:esp32:esp32s3:PSRAM=opi,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB" <sketch>
+
+## Hard rules: never break these
+1. **GPIO45 is a strapping pin.** It must be low at boot, otherwise the chip selects 1.8V flash.
+   - Never pull it high, never add an external pull-up, never drive it as an output.
+   - Only an internal pull-up after boot (mute button to GND). In ESPHome this needs
+     `ignore_strapping_warning: true`; that is expected.
+2. **USB-C PD (HUSB238) stays at 12V.** Never 15V or 20V. The MAX9744's maximum is 14V.
+3. **Speaker level is capped at 0.5 of digital full scale (−6 dBFS).** The DAC's 2.1 Vrms full scale
+   overdrives the amp.
+   - Every volume path must stay at or under the cap: voice, knob, HA, media, alarms.
+   - Verify how ESPHome's volume maps to amplitude before relying on it.
+4. **Secrets live only in gitignored files.**
+   - ESPHome: `firmware/satellite/secrets.yaml`.
+   - Python services: `.env` files.
+   - Legacy Arduino tests: `HubSecrets.h` in the Arduino libraries folder.
+   - Never put Wi-Fi or MQTT credentials, API keys, OTA passwords or encryption keys in code, docs,
+     commits, PR text or logs. Never open or print the real secrets files.
+5. **Network addresses come from secrets or config, never hard-coded.** That covers Home Assistant, the
+   MQTT broker and any other host.
+
+## Hardware constraints
+- **MAX9744 I2C:** its I2C lines are cut and it runs in analog volume mode (a pot sets the max level).
+  Never write I2C code for the amp.
+- **MAX9744 MUTE:** not connected. It is planned on GPIO4 (free since the camera was dropped), open-drain
+  only, after Will measures that MUTE idles at 3.6V or less. Do not drive it until Will confirms.
+- **LED strip current:** WS2812B on its own buck with a ~1.2A budget. 30 LEDs at full white would draw
+  ~1.8A, so cap brightness in software.
+- **GPIO48:** the devkit's onboard RGB LED.
+- **Pins never to use:**
+  - GPIO33–37: used by the OPI PSRAM.
+  - GPIO0, 3, 46: strapping pins.
+  - GPIO19/20: native USB.
+  - GPIO43/44: UART0.
+- **Camera pins (GPIO4–18):** free, but ask before assigning them.
+
+## Hardware and pin map
+| Component | Interface | Pins / settings |
+|---|---|---|
+| ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 42, WS 1, DIN 2 |
+| PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 39, WS 40, DOUT 38 |
+| Seesaw rotary encoder (0x36) | I2C bus 0 | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 |
+| WS2812B strip (NUM_LEDS = 30, placeholder) | addressable LED | DATA 41 |
+| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO45 |
+
+Proven in the Arduino tests:
+- **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gives good far-field pickup. Reproduce the
+  equivalent in ESPHome and verify it.
+- **Encoder:** 2% volume per click.
+
+Board: ESP32-S3-DevKitC-1 N16R8 clone, 16MB flash, 8MB octal PSRAM. Hostname `sat-hub`.
+
+Power: HUSB238 at 12V feeds the MAX9744 VDD and two MPM3610 5V bucks.
+- Buck A: devkit 5V (logic).
+- Buck B: LED strip.
+- Star grounding.
+
+## Code conventions
+- **ESPHome:**
+  - Keep `sat-hub.yaml` readable and split into packages under `firmware/satellite/packages/` by
+    function: audio, voice, leds, controls, alarm.
+  - Custom C++ goes in `firmware/satellite/components/<name>/` as ESPHome external components. No large
+    inline lambdas.
+- **Python:** 3.11+, type hints, small modules, `pytest` tests next to the code. Configuration comes from
+  `.env` or config files.
+- **Home Assistant config:** kept in `homeassistant/` as packages (helpers, scripts, automations, custom
+  sentences, dashboards) so it's versioned. Each milestone doc says how to apply it to the live instance.
+- **Complete files only:** never leave "paste X here" placeholders.
+
+## Repo layout
+    CLAUDE.md
+    docs/MILESTONES.md            milestone list and status
+    docs/milestones/              one doc per completed milestone
+    docs/setup/                   setup guides (Home Assistant, Proxmox, ...)
+    docs/robot-integration.md     robot setup guide + MQTT contract (M6)
+    firmware/satellite/           ESPHome config, packages/, components/, secrets.example.yaml
+    homeassistant/                HA packages, custom sentences, dashboards
+    services/alarm-analytics/     robot telemetry processing (M6)
+    jarvis-core/                  conversation agent + plugin platform (Phase B)
+    tools/mock-robot/             mock robot for testing the hub side (M6)
+    tests/hardware/arduino/       legacy Arduino component tests
+    tests/hardware/pc/            PC side of the legacy tests
+
+Folders are created by the milestone that first needs them.
+
+## Out of scope unless a milestone says otherwise
+Camera, music streaming beyond what a milestone defines, echo cancellation, enclosure work, automatic
+deploys, multiple satellites.
