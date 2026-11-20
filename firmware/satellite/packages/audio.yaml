@@ -56,15 +56,25 @@ speaker:
     bits_per_sample: 16bit
     channel: left
     buffer_duration: 100ms
-    # Keep the I2S channel allocated between sounds. By default ESPHome deletes it
-    # 500 ms after the last sound, which leaves the DAC's clock and data lines
-    # floating; they pick up noise and the amp hums. Kept alive, the lines stay
-    # driven and the DAC mutes itself while the clocks are stopped.
-    #
-    # Do not use "timeout: never" here: the speaker then never reports that it has
-    # stopped, the media player never finishes its announcement, and the voice
-    # assistant stays busy and ignores the wake word.
-    keep_alive: true
+    # Never stop the I2S output: once started it keeps sending digital silence, so
+    # the DAC always has clocks. (Test for the idle hum; the Arduino speaker test
+    # also ran its output continuously.)
+    timeout: never
+
+  # The media player plays into the mixer's source speaker, not into the I2S
+  # speaker directly. The source speaker starts and stops with each sound, which
+  # is what the media player and voice assistant wait on. The mixer itself never
+  # stops the I2S output, so "timeout: never" above is safe here. Setting it on a
+  # speaker the media player uses directly makes the voice assistant ignore the
+  # wake word (seen in firmware 0.2.2).
+  - platform: mixer
+    id: spk_mixer
+    output_speaker: i2s_spk
+    num_channels: 1
+    source_speakers:
+      - id: announcement_spk
+      # A mixer needs at least two sources. This one is unused for now.
+      - id: spare_spk
 
 media_player:
   # The only route to the speaker. Voice replies use it now; the volume knob (M3)
@@ -73,7 +83,7 @@ media_player:
     id: sat_media_player
     name: Media Player
     announcement_pipeline:
-      speaker: i2s_spk
+      speaker: announcement_spk
       format: FLAC
       sample_rate: 48000
       num_channels: 1
