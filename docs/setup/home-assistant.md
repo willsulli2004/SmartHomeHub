@@ -283,7 +283,8 @@ Check: **Wyoming Protocol** in the integrations list now shows two entries, Whis
 
 1. Click **Add assistant**.
 2. Fill it in:
-   - **Name:** `Jarvis`
+   - **Name:** `Jewel`. This is only a label in Home Assistant's menus and can be anything. It is
+     not the wake word; "Hey Jarvis" is set in the satellite's firmware (M2).
    - **Language:** English
    - **Conversation agent:** Home Assistant
    - **Speech-to-text:** faster-whisper, language English
@@ -300,7 +301,7 @@ Trying voices is quick and does not involve the add-on page.
 
 **To change the main voice**
 
-1. HA web UI → **Settings → Voice assistants →** click **Jarvis**.
+1. HA web UI → **Settings → Voice assistants →** click **Jewel**.
 2. In the **Text-to-speech** section, pick a different **Language** and **Voice**. Each voice comes in
    up to three quality levels: `low`, `medium`, `high`. `medium` is the usual balance; `high` sounds
    better and takes longer to start speaking.
@@ -312,11 +313,11 @@ kept on disk.
 
 **To compare voices side by side**
 
-1. Add a second assistant named `Voice test`, with the same settings as Jarvis.
+1. Add a second assistant named `Voice test`, with the same settings as Jewel.
 2. Change only its voice.
 3. In the Assist dialog, switch between assistants with the name shown at the top.
 
-This leaves Jarvis, the preferred assistant the satellite will use, untouched until you decide.
+This leaves Jewel, the preferred assistant the satellite will use, untouched until you decide.
 
 Samples of every voice can be heard on the Piper project's voice samples page; search for
 "Piper voice samples". Voices to try for a Jarvis feel: `en_GB-alan-medium`,
@@ -338,7 +339,7 @@ Whisper and Piper add-ons are all running (**Settings → Add-ons**) without bei
 
 ### 11.2 Typed command
 1. HA web UI → click the **Assist** icon at the top right of the dashboard.
-2. Check the assistant shown is **Jarvis**.
+2. Check the assistant shown is **Jewel**.
 3. Type `what time is it` and press Enter.
 
 Pass: it answers with the current time.
@@ -349,12 +350,12 @@ A browser will not open the microphone on a plain `http://` page, so this test u
 1. On the phone, install the **Home Assistant** Companion app, on the same Wi-Fi as the mini PC.
 2. Let it find the server, or enter `http://homeassistant.local` by hand. Sign in.
 3. When it asks about location and sensor sharing, decline. They are not needed.
-4. Open **Assist** in the app, check the assistant is **Jarvis**, tap the microphone, allow microphone
+4. Open **Assist** in the app, check the assistant is **Jewel**, tap the microphone, allow microphone
    access, and say "what time is it".
 
 Pass: your words appear as text, and the answer is spoken in the chosen voice.
 
-To see timings: HA web UI → **Settings → Voice assistants →** the three dots on Jarvis → **Debug**.
+To see timings: HA web UI → **Settings → Voice assistants →** the three dots on Jewel → **Debug**.
 The last run shows how long speech-to-text and text-to-speech each took.
 
 The app connects straight to Home Assistant on the local network. Its push notifications would travel

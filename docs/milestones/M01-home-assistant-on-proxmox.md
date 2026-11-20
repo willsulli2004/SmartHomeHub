@@ -27,7 +27,7 @@ Will carries out.
 ## How it connects to the rest of the project
 This is layer 2 of the architecture, the Home Assistant side that everything else talks to.
 
-- **M2** points the satellite at this Home Assistant and its `Jarvis` Assist pipeline. The satellite's
+- **M2** points the satellite at this Home Assistant and its `Jewel` Assist pipeline. The satellite's
   secrets file gets the fixed address reserved here.
 - **M4** changes the pipeline's conversation agent to add Claude for general questions.
 - **M5 and M6** publish and subscribe on the Mosquitto broker. The robot uses the `alarmbot` login and
@@ -44,7 +44,7 @@ Nothing is flashed. All changes are made by Will in the Proxmox and Home Assista
    download it. This is before any add-on is installed, so it is the clean rollback point.
 2. Follow `docs/setup/home-assistant.md` sections 2 to 10 in order.
 
-Roll back: restore that backup, or uninstall the three add-ons and delete the `Jarvis` assistant.
+Roll back: restore that backup, or uninstall the three add-ons and delete the `Jewel` assistant.
 
 ## How to test
 The checklist is section 11 of `docs/setup/home-assistant.md`. Pass criteria, from the milestone's
