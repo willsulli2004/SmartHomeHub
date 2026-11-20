@@ -56,25 +56,16 @@ speaker:
     bits_per_sample: 16bit
     channel: left
     buffer_duration: 100ms
-    # Never stop the I2S output: once started it keeps sending digital silence, so
-    # the DAC always has clocks. (Test for the idle hum; the Arduino speaker test
-    # also ran its output continuously.)
-    timeout: never
-
-  # The media player plays into the mixer's source speaker, not into the I2S
-  # speaker directly. The source speaker starts and stops with each sound, which
-  # is what the media player and voice assistant wait on. The mixer itself never
-  # stops the I2S output, so "timeout: never" above is safe here. Setting it on a
-  # speaker the media player uses directly makes the voice assistant ignore the
-  # wake word (seen in firmware 0.2.2).
-  - platform: mixer
-    id: spk_mixer
-    output_speaker: i2s_spk
-    num_channels: 1
-    source_speakers:
-      - id: announcement_spk
-      # A mixer needs at least two sources. This one is unused for now.
-      - id: spare_spk
+    # The output is left on ESPHome's defaults: it stops 500 ms after each sound.
+    # Known issue (M2): the speaker hums when idle. Tests on the hardware showed
+    # the hum is loudest while the I2S output is running and quietest in this
+    # default stopped state, so keeping the output alive makes it worse:
+    #   - "timeout: never" on this speaker also makes the voice assistant ignore
+    #     the wake word (firmware 0.2.2);
+    #   - "keep_alive: true" and a mixer with a never-stopping output did not help
+    #     (0.2.3, 0.2.4).
+    # The hum is not fixable in firmware alone. The planned fix is the amp's MUTE
+    # pin (see docs/milestones/M02-esphome-satellite-base.md).
 
 media_player:
   # The only route to the speaker. Voice replies use it now; the volume knob (M3)
@@ -83,7 +74,7 @@ media_player:
     id: sat_media_player
     name: Media Player
     announcement_pipeline:
-      speaker: announcement_spk
+      speaker: i2s_spk
       format: FLAC
       sample_rate: 48000
       num_channels: 1
