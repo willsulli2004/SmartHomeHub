@@ -8,8 +8,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 ### Phase A — CpE417 demo (due December 1st, 2026)
 | # | Milestone | Target | Status |
 |---|---|---|---|
-| M0 | Repo and workflow | Nov 20 | in review |
-| M1 | Home Assistant on Proxmox | Nov 21 | planned |
+| M0 | Repo and workflow | Nov 20 | merged |
+| M1 | Home Assistant on Proxmox | Nov 21 | in review |
 | M2 | ESPHome satellite base | Nov 23 | planned |
 | M3 | Satellite controls and feedback | Nov 24 | planned |
 | M4 | Core voice | Nov 25 | planned |
@@ -55,7 +55,8 @@ extras and M6's analytics before cutting alarms or the robot link.
 - **Add-ons:** Mosquitto broker (with users for the hub, the robot and services), Whisper, Piper.
 - **Voice:** an Assist pipeline using Whisper and Piper.
 - **Docs:** setup guide `docs/setup/home-assistant.md`. Will does the install; Claude writes the guide
-  and documents what was done.
+  and documents what was done. (Home Assistant OS was already running when M1 started, so the guide
+  records the existing VM and covers the remaining setup.)
 - **Done when:** HA is reachable on the network, a typed and a spoken test command work in HA's own
   Assist dialog, MQTT accepts a test publish/subscribe, and a backup exists.
 

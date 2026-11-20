@@ -1,5 +1,5 @@
 # M00 — Repo and workflow
-Status: in review   Branch: `milestone/M00-repo-workflow`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/1
+Status: merged   Branch: `milestone/M00-repo-workflow`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/1
 
 ## Goal
 A clean repo and a repeatable backup → update → test routine before any feature work.
