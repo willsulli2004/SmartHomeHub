@@ -1,5 +1,5 @@
 # M00 — Repo and workflow
-Status: in review   Branch: `milestone/M00-repo-workflow`   PR: not opened yet (waiting on `gh`)
+Status: in review   Branch: `milestone/M00-repo-workflow`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/1
 
 ## Goal
 A clean repo and a repeatable backup → update → test routine before any feature work.
@@ -61,12 +61,12 @@ Checks Claude ran on this branch:
 - `secrets.example.yaml` parses as YAML with the five expected keys, and the API key decodes to 32 bytes.
 - `pip check` reports no broken requirements.
 - Not run: `esphome compile`. There is no `sat-hub.yaml` until M2.
-- Not run: item 4. `gh` is not installed on this machine yet.
+- Item 4: pass, after Will installed `gh` and signed in. The PR was opened with `gh pr create`.
 
 ## Deviations from the plan
 - The ESPHome version came out as 2026.11.0; the plan did not name a version.
-- `gh` was not installed when the branch was finished, so the PR could not be opened by Claude until
-  Will installs it and signs in.
+- `gh` was not installed when the branch was finished, so the PR was opened a little later, once Will
+  had installed it and signed in.
 
 ## Known limitations / follow-ups
 - The deploy routine is untested against real hardware until M2 (first flash, first OTA, first rollback).
