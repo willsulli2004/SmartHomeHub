@@ -112,8 +112,8 @@ an explicit test checklist.
 ## Hard rules: never break these
 1. **GPIO45 is a strapping pin.** It must be low at boot, otherwise the chip selects 1.8V flash.
    - Never pull it high, never add an external pull-up, never drive it as an output.
-   - Only an internal pull-up after boot (mute button to GND). In ESPHome this needs
-     `ignore_strapping_warning: true`; that is expected.
+   - Nothing is connected to it in the rebuilt hub (the mute button moved to GPIO5). Keep it that way
+     unless Will decides otherwise.
 2. **USB-C PD (HUSB238) stays at 12V.** Never 15V or 20V. The MAX9744's maximum is 14V.
 3. **Speaker level is capped at 0.5 of digital full scale (−6 dBFS).** The DAC's 2.1 Vrms full scale
    overdrives the amp.
@@ -131,37 +131,52 @@ an explicit test checklist.
 ## Hardware constraints
 - **MAX9744 I2C:** its I2C lines are cut and it runs in analog volume mode (a pot sets the max level).
   Never write I2C code for the amp.
-- **MAX9744 MUTE:** not connected. It is planned on GPIO4 (free since the camera was dropped), open-drain
-  only, after Will measures that MUTE idles at 3.6V or less. Do not drive it until Will confirms.
-- **LED strip current:** WS2812B on its own buck with a ~1.2A budget. 30 LEDs at full white would draw
-  ~1.8A, so cap brightness in software.
+- **MAX9744 MUTE:** not connected yet. It is planned on GPIO4 (free since the camera was dropped),
+  open-drain only. Will measured it on November 22nd, 2026: the pin floats between about 0 and 3V (under
+  the 3.6V limit), and connecting it to ground mutes the amp, including the idle hum. Will wires it last,
+  when the enclosure is finished. Do not drive it until Will confirms it is wired.
+- **LED ring current:** the 24-LED WS2812 ring is on its own buck with a ~1.2A budget. 24 LEDs at full
+  white would draw ~1.44A, so cap brightness in software. The firmware caps every channel at 80%
+  (worst case 1.15A).
 - **GPIO48:** the devkit's onboard RGB LED.
 - **Pins never to use:**
   - GPIO33–37: used by the OPI PSRAM.
   - GPIO0, 3, 46: strapping pins.
   - GPIO19/20: native USB.
   - GPIO43/44: UART0.
-- **Camera pins (GPIO4–18):** free, but ask before assigning them.
+- **Camera pins (GPIO4–18):** free, but ask before assigning them. GPIO4 is reserved for the amp MUTE and
+  GPIO5 is the mute button.
 
 ## Hardware and pin map
 | Component | Interface | Pins / settings |
 |---|---|---|
 | ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 42, WS 1, DIN 2 |
-| PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 39, WS 40, DOUT 38 |
+| PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 40, WS 38, DOUT 39 |
 | Seesaw rotary encoder (0x36) | I2C bus 0 | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 |
-| WS2812B strip (NUM_LEDS = 30, placeholder) | addressable LED | DATA 41 |
-| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO45 |
+| DFRobot WS2812 RGB LED ring, 24 LEDs | addressable LED | DATA 41 |
+| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO5 |
+
+The pin map above is the rebuilt hub (new ESP32, November 22nd, 2026). The first build used DAC BCK 39,
+WS 40, DOUT 38, a 71-LED WS2812B strip, and the mute button on GPIO45.
 
 Proven in the Arduino tests:
-- **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gives good far-field pickup. Reproduce the
-  equivalent in ESPHome and verify it.
+- **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gave good far-field pickup in open air.
 - **Encoder:** 2% volume per click.
+
+Learned in M2 on the assembled hub (details in `docs/milestones/M02-esphome-satellite-base.md`):
+- **Mic gain:** the Arduino value clips in the assembled hub and makes the wake word unreliable. ESPHome
+  uses `mic_gain_factor: 4` (+12 dB). Tune it with the Mic Peak sensor: speech should peak between about
+  −20 and −6 dB and never reach 0.
+- **LED ring:** it needs the Adafruit NeoPixel bit timings (400/850/800/450 ns, 300 µs reset), not
+  ESPHome's built-in WS2812 timings, and the firmware must always drive the data line.
+- **Encoder press:** the current enclosure gives no way to press the knob. Only rotation is usable until
+  the enclosure is changed, so nothing may depend on the press.
 
 Board: ESP32-S3-DevKitC-1 N16R8 clone, 16MB flash, 8MB octal PSRAM. Hostname `sat-hub`.
 
 Power: HUSB238 at 12V feeds the MAX9744 VDD and two MPM3610 5V bucks.
 - Buck A: devkit 5V (logic).
-- Buck B: LED strip.
+- Buck B: LED ring.
 - Star grounding.
 
 ## Code conventions

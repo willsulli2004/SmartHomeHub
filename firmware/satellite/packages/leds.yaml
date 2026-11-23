@@ -1,0 +1,108 @@
+# LEDs: status colours on the DFRobot 24-LED WS2812 ring (DATA on GPIO41).
+#
+# M2 only shows a solid colour per state. M3 adds the full set of LED states and
+# animations and the encoder's pixel.
+#
+#   off         idle, waiting for the wake word
+#   blue        wake word heard, listening
+#   green       thinking / speaking
+#   red         muted
+#
+# The ring must always be driven by the firmware. Left undriven, its data line
+# floats and picks up noise from the audio signals beside it.
+#
+# Current limit (hardware constraint): the ring is the only load on its buck
+# converter (MPM3610), which can supply about 1.2 A. Each pixel holds a red, a
+# green and a blue LED of about 20 mA each at full drive, so 24 pixels at full
+# white could ask for 24 x 60 mA = 1.44 A. color_correct scales every channel to
+# led_max_level in the driver, for every colour and effect:
+#   worst case (white) 24 x 60 mA x 0.80 = 1.15 A
+#   one colour         24 x 20 mA x 0.80 = 0.38 A
+# If led_count changes, keep  led_count x 0.06 A x led_max_level  under 1.2 A.
+
+substitutions:
+  led_count: "24"
+  led_max_level: "80%"
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_light
+    # Shown in Home Assistant so the ring can be tested by hand. Safe at any
+    # colour because of the cap above. M3 decides whether it stays.
+    name: Status Ring
+    pin: GPIO41
+    num_leds: ${led_count}
+    # Bit timings copied from the Adafruit NeoPixel library. The first build's
+    # strip ignored ESPHome's built-in WS2812 timings (400/1000/1000/400 ns, no
+    # reset) and worked with these.
+    bit0_high: 400ns
+    bit0_low: 850ns
+    bit1_high: 800ns
+    bit1_low: 450ns
+    reset_low: 300us
+    channel_colors: GRB
+    # Keep the frame buffer in internal RAM; it is read from an interrupt.
+    use_psram: false
+    color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
+    default_transition_length: 0s
+    restore_mode: ALWAYS_OFF
+
+interval:
+  # Safety net: re-send the current LED frame once a second.
+  #
+  # Seen on the hardware (firmware 0.3.1): after a spoken reply the LED output
+  # sometimes gets stuck. The ring then freezes on its last colour, and the
+  # microphone stops delivering audio, so the wake word goes deaf. Sending any
+  # new LED frame clears both at once. This driver refills its signal buffer
+  # from an interrupt every 4 LEDs; if that interrupt is delayed while the audio
+  # output is being shut down, the frame never ends properly. Re-sending the
+  # frame restarts the output, so a stuck state now lasts at most one second.
+  - interval: 1s
+    then:
+      - lambda: static_cast<light::AddressableLight *>(id(status_light).get_output())->schedule_show();
+
+script:
+  - id: status_light_listening
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 0%
+          green: 0%
+          blue: 100%
+
+  - id: status_light_busy
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 0%
+          green: 100%
+          blue: 0%
+
+  # Shows the resting state: red while muted, otherwise off.
+  - id: status_light_idle
+    mode: restart
+    then:
+      - if:
+          condition:
+            binary_sensor.is_on: mute_button
+          then:
+            - light.turn_on:
+                id: status_light
+                brightness: 70%
+                red: 100%
+                green: 0%
+                blue: 0%
+          else:
+            - light.turn_off: status_light
+
+esphome:
+  on_boot:
+    # Write the resting state once at start-up so the ring is driven from the
+    # beginning and clears anything it latched while the chip was booting.
+    - priority: -100
+      then:
+        - script.execute: status_light_idle
