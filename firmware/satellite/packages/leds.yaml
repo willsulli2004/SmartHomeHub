@@ -68,9 +68,9 @@ light:
               pos = 0;
             const int n = it.size();
             it.all() = Color::BLACK;
-            it[pos] = Color(70, 0, 255);                  // head: deep purple
-            it[(pos - 1 + n) % n] = Color(110, 30, 200);  // direction: - here
-            it[(pos - 2 + n) % n] = Color(70, 35, 110);   // tail: lightest
+            it[pos] = Color(180, 0, 255);                 // head: deep purple
+            it[(pos - 1 + n) % n] = Color(150, 40, 190);  // direction: - here
+            it[(pos - 2 + n) % n] = Color(80, 30, 100);   // tail: lightest
             pos = (pos + 1) % n;                          // direction: + here
       # Lights the first part of the ring in proportion to the volume.
       - addressable_lambda:

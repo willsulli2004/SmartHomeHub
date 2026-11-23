@@ -35,7 +35,7 @@ tag.
 - `firmware/satellite/sounds/timer_ring.wav` — new. The default ring: four short beeps, 0.63 seconds.
 - `firmware/satellite/sounds/make_ring.py` — new. Generates that file with standard-library Python.
 - `firmware/satellite/sounds/README.md` — new. How to swap in your own ring sound.
-- `firmware/satellite/sat-hub.yaml` — changed. Loads `alarm.yaml`; version 0.5.1.
+- `firmware/satellite/sat-hub.yaml` — changed. Loads `alarm.yaml`; version 0.5.2.
 - `docs/setup/home-assistant.md` — changed. New section 13: exposing devices, timer phrases, the
   Claude API key, the Anthropic integration, the prompt, and the pipeline setting.
 - `docs/MILESTONES.md` — M3 set to `merged`, M4 to `in review`, web search added to the backlog.
@@ -87,7 +87,7 @@ the cap, which holds for any file at any volume.
 
 ### LED ring current
 The ringing effect lights three LEDs at a time: a deep purple leading LED and two lighter, fainter
-ones behind it. That is about 55 mA at the 80% cap, far inside the 1.2 A budget.
+ones behind it. That is about 65 mA at the 80% cap, far inside the 1.2 A budget.
 
 ## How it connects to the rest of the project
 - **Uses M1:** the `Jewel` pipeline, Whisper and Piper. Only the conversation agent changes.
@@ -131,7 +131,7 @@ restore the `before-M04` backup.
 Claude cannot hear the speaker, see the ring or turn the knob. Pass criteria are in bold. Every
 spoken line starts with "Hey Jarvis".
 
-**1. Boot.** **Pass: Firmware reads `0.5.1 (ESPHome 2026.11.0)`, and "what time is it?" still gets a
+**1. Boot.** **Pass: Firmware reads `0.5.2 (ESPHome 2026.11.0)`, and "what time is it?" still gets a
 spoken answer.**
 
 **2. Device command.** "Turn on the desk lights" (use your light's name), then "turn them off".
@@ -196,7 +196,7 @@ the ring never freezes and the wake word never goes deaf.**
 Checks Claude ran, using a temporary copy with the example secrets (the real `secrets.yaml` was never
 opened):
 - `esphome config`: valid.
-- `esphome compile`: passes for 0.5.0 and 0.5.1. Flash use is 18.6% (1.51 MB of the 8.1 MB app space), RAM
+- `esphome compile`: passes for 0.5.0, 0.5.1 and 0.5.2. Flash use is 18.6% (1.51 MB of the 8.1 MB app space), RAM
   39.4%.
 - `make_ring.py` runs and writes a 0.63-second, 60 kB WAV.
 - Not run: anything on the hardware or in Home Assistant. Ringing, the "stop" word, the volume range
