@@ -105,7 +105,8 @@ extras and M6's analytics before cutting alarms or the robot link.
 
 ### M5 — Alarms
 **Goal:** the CpE417 alarm feature on the hub side.
-- **Alarm data:** stored in Home Assistant (helpers), so both voice and the dashboard (M6) can set them.
+- **Alarm data:** stored in Home Assistant (helpers), so both voice and the app can set them. An
+  Alarms dashboard in the app sets and changes alarms (moved here from M6 during M5 testing).
   Five alarm slots; each alarm fires once.
 - **Voice commands:** "set an alarm for 7 AM", "cancel my alarm", "when is my alarm".
 - **Settings in the app:** ringing volumes, colours and timeouts for timers and alarms are Home
@@ -141,8 +142,8 @@ agent. Its design is discussed separately; this milestone covers only how the hu
   - keeps rolling 7-day averages of wake-up delay
   - flags low battery from the voltage trend
   - publishes results to HA through MQTT discovery
-- **Home Assistant dashboard:** live robot status and battery, wake-up history charts, and remote alarm
-  setting.
+- **Home Assistant dashboard:** live robot status and battery, wake-up history charts (alarm setting was
+  built in M5).
 - **Done when:** a full alarm → chase → caught → stop cycle works with the mock robot, the dashboard
   updates, and the guide is ready for the robot agent.
 

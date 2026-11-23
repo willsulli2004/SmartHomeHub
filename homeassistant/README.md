@@ -8,6 +8,7 @@ are in section 14 of [docs/setup/home-assistant.md](../docs/setup/home-assistant
 |---|---|---|
 | `packages/hub_alarms.yaml` | `/config/packages/hub_alarms.yaml` | Alarm helpers, scripts, automations and voice intents (M5) |
 | `custom_sentences/en/hub_alarms.yaml` | `/config/custom_sentences/en/hub_alarms.yaml` | The spoken alarm phrases (M5) |
+| `dashboards/hub_alarms.yaml` | pasted into a dashboard's raw configuration editor | The Alarms page for the app: set alarms, tune how timers and alarms ring (M5) |
 | `tests/` | not copied | `pytest` checks for the two files above |
 
 A file changed here must be copied again, and Home Assistant restarted, before the change is live.
@@ -18,8 +19,8 @@ From the repo folder:
     .\.venv\Scripts\python.exe -m pytest homeassistant
 
 - `tests/test_alarm_sentences.py` matches phrases with `hassil`, the matcher inside Home Assistant.
-- `tests/test_alarm_templates.py` runs the time and wording logic with stand-ins for Home Assistant's
-  template functions.
+- `tests/test_alarm_templates.py` runs the time parsing, arithmetic and wording with stand-ins for
+  Home Assistant's template functions, and checks the dashboard only names entities that exist.
 
 The tests cannot check that Home Assistant loads the package. After copying, use **Developer tools →
 YAML → Check configuration** before restarting.

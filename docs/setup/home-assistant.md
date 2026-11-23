@@ -699,16 +699,18 @@ level cap.
 | Setting | Meaning |
 |---|---|
 | Alarm timeout | minutes an alarm rings before it gives up |
-| Alarm 1 to 5, and Alarm 1 to 5 time | the alarm slots: a switch and a date-and-time each |
+| Alarm 1 to 5, and Alarm 1 to 5 time | the alarm slots: a switch and a time of day each |
 
-Setting an alarm by hand: set a slot's time to a date and time in the future, then turn its switch
-on. The M6 dashboard will make this friendlier.
+Setting an alarm from the app: pick a slot's time, then turn its switch on. It rings on the hub the
+next time the clock reaches that time, then switches itself off. Section 14.11 adds a dashboard page
+that puts the alarms and all the settings above in one place.
 
 ### 14.8 Voice commands
 
 | Say | What happens |
 |---|---|
 | "Set an alarm for 7 AM" / "for 7:30 PM" / "for 19:15" | sets an alarm in the first free slot |
+| "Set an alarm for" something that is not a time | the hub says it did not catch the time |
 | "Set an alarm for 7" | sets it for the next 7 o'clock to come, morning or evening |
 | "Wake me up at 6:45" | the same as "set an alarm" |
 | "When is my alarm?" / "What alarms are set?" | lists the alarms, soonest first |
@@ -742,3 +744,37 @@ The alarm stops with reason `caught`. A wrong id is ignored.
 Delete `packages/hub_alarms.yaml` and `custom_sentences/en/hub_alarms.yaml` in the File editor and restart Home
 Assistant. The alarm helpers, scripts and voice commands disappear. The `packages:` line in
 `configuration.yaml` can stay; an empty `packages` folder is harmless.
+
+### 14.11 The Alarms dashboard
+
+A page in the app for setting and changing alarms and for tuning how timers and alarms ring. Alarms
+set here ring on the hub exactly like alarms set by voice; both use the same five slots.
+
+**Where:** HA web UI → **Settings → Dashboards**.
+
+1. Click **Add dashboard** and choose **New dashboard from scratch**.
+2. Title `Alarms`, icon `mdi:alarm`, leave **Show in sidebar** on, and click **Create**.
+3. Open **Alarms** from the sidebar. Click the pencil at the top right to edit. If it asks whether to
+   take control of the dashboard, confirm.
+4. Click the three dots at the top right and choose **Raw configuration editor**.
+5. Delete everything in the editor. On the PC, open `homeassistant/dashboards/hub_alarms.yaml` from
+   the repo, copy all of it, and paste it in.
+6. Click **Save**, then close the editor and click **Done**.
+
+The page has five cards:
+
+| Card | What it is for |
+|---|---|
+| Stop the alarm | a button that only appears while an alarm is going off |
+| Alarms | the five alarms: a time and an on/off switch each |
+| How alarms ring | volume, light colour, how long before giving up, and a button to ring the alarm now as a test |
+| How timers ring | quietest and loudest volume, light colour, how long before giving up |
+| Status | whether the hub is ringing, and the last alarm id |
+
+**To set an alarm:** tap an alarm's time and pick it, then switch that alarm on. **To change it:**
+pick a new time. **To cancel it:** switch it off. An alarm switches itself off after it has rung.
+
+If a row shows "Entity not available", the satellite's entity has a different id on your install.
+Edit the card, pick the right entity for that row, and tell Claude so the repo copy can be corrected.
+
+The same dashboard works in the phone app.

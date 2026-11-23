@@ -6,17 +6,34 @@ The CpE417 alarm feature on the hub side: an alarm set by voice fires on time, r
 satellite, tells the robot over MQTT, and can be stopped several ways, each reported over MQTT. It
 works the same with the robot offline.
 
+## Where it stands
+Will's results on November 23rd, 2026:
+- **Section 14.4 failed** with an error about `!lambda`. The firmware's `packages/alarm.yaml` had been
+  pasted into Home Assistant, because the Home Assistant package had the same file name. The two Home
+  Assistant files were renamed to `hub_alarms.yaml`.
+- **"Set an alarm for 3:10PM" was answered by Claude,** which said it could not set an alarm. The
+  phrase file listed exact ways of writing a time and that one was not among them, so Home Assistant
+  did not recognise the sentence. The phrases now hand over whatever was said as the time, and a
+  script works it out.
+- **Will asked to set and change alarms from the app.** The slots became a time of day instead of a
+  date and time, and an Alarms dashboard was added.
+
+None of the three fixes has been tried on the live instance yet. The firmware is unchanged at 0.6.0.
+
 ## What was built
 **Home Assistant side** (new folder `homeassistant/`):
-- `homeassistant/packages/hub_alarms.yaml` — new. Five alarm slots as helpers, the scripts that start and
+- `homeassistant/packages/hub_alarms.yaml` — new. Five alarm slots as helpers (a time of day and a
+  switch each), a script that understands a spoken time, the scripts that start and
   stop an alarm, automations for every trigger and stop path, the MQTT publishing, and the handlers
   for the voice commands.
 - `homeassistant/custom_sentences/en/hub_alarms.yaml` — new. The spoken phrases for setting, cancelling
   and asking about alarms.
-- `homeassistant/tests/test_alarm_sentences.py` — new. 53 checks that phrases, written the way
-  speech-to-text writes them, are matched with the right hour, minute and am/pm.
-- `homeassistant/tests/test_alarm_templates.py` — new. 36 checks of the time arithmetic, slot
-  matching and spoken wording.
+- `homeassistant/dashboards/hub_alarms.yaml` — new. An Alarms page for the app: the five alarms, a
+  stop button, and the timer and alarm settings.
+- `homeassistant/tests/test_alarm_sentences.py` — new. 58 checks that phrases, written the way
+  speech-to-text writes them, trigger the right command and hand over the right words as the time.
+- `homeassistant/tests/test_alarm_templates.py` — new. 95 checks of the time parsing, the
+  arithmetic, slot matching, the spoken wording, and that the dashboard names real entities.
 - `homeassistant/README.md` — new. What each file is, where it goes, and how to run the tests.
 
 **Satellite side:**
@@ -46,17 +63,18 @@ works the same with the robot offline.
 - `docs/milestones/M05-alarms.md` — new. This doc.
 
 ### How an alarm runs
-1. **Set.** "Set an alarm for 7 AM" matches a custom sentence on the mini PC. The script works out
-   the next moment the clock shows that time, stores it in the first free of five slots, and switches
-   the slot on.
-2. **Fire.** At that moment the slot switches off (alarms fire once) and `hub_alarm_start` runs. It
+1. **Set.** "Set an alarm for 7 AM" matches a custom sentence on the mini PC, which hands "7 AM" to
+   a script. The script works out the time, stores it in the first free of five slots, and switches
+   the slot on. Picking a time and switching a slot on in the app does the same thing.
+2. **Wait.** A slot that is on fires the next time the clock reaches its time.
+3. **Fire.** At that moment the slot switches off (alarms fire once) and `hub_alarm_start` runs. It
    creates an `alarm_id`, marks the alarm as ringing, fires the `hub_alarm_started` event, and asks
    the satellite to ring.
-3. **Tell the robot.** An automation that listens for `hub_alarm_started` publishes
+4. **Tell the robot.** An automation that listens for `hub_alarm_started` publishes
    `hub/alarm/start`.
-4. **Ring.** The satellite plays the alarm sound on repeat at the Alarm Volume and circles the Alarm
+5. **Ring.** The satellite plays the alarm sound on repeat at the Alarm Volume and circles the Alarm
    Ring Colour.
-5. **Stop.** Whatever stops it ends in `hub_alarm_stop` with a reason. That clears the ringing mark,
+6. **Stop.** Whatever stops it ends in `hub_alarm_stop` with a reason. That clears the ringing mark,
    fires `hub_alarm_stopped`, and tells the satellite to go quiet. An automation listening for the
    event publishes `hub/alarm/stop`.
 
@@ -85,6 +103,9 @@ the satellite never talks to the broker.
 - **Without** ("7", "7:30"): the next time the clock shows it. At 3 PM, "7" means 7 PM today; at
   9 PM it means 7 AM tomorrow.
 - **24-hour** ("19:15") and **noon / midnight** are understood.
+- **Any way of writing it** that speech-to-text produces: "3:10 PM", "3:10pm", "3.10 p.m.",
+  "310 PM", "three ten in the afternoon".
+- **Not a time** ("set an alarm for when I get home"): the hub says it did not catch the time.
 
 ### Settings in the app
 | Where | Setting | Default |
@@ -96,6 +117,8 @@ the satellite never talks to the broker.
 | | Alarm Ring Colour | orange-red |
 | Home Assistant helpers | Alarm timeout | set to 10 min during install |
 | | Alarm 1 to 5 and their times | all off |
+
+The Alarms dashboard (section 14.11 of the setup guide) shows all of these on one page.
 
 The colours are light entities so that Home Assistant shows a colour picker; they light nothing
 themselves. The M4 values `ring_volume_min`, `ring_volume_max` and `ring_timeout` are gone from the
@@ -138,7 +161,8 @@ PowerShell, in the repo folder, with the two `ESPHOME_` folder variables set (se
        git checkout milestone/M05-alarms
        .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-4. **Home Assistant:** follow section 14 of `docs/setup/home-assistant.md`, 14.1 to 14.6.
+4. **Home Assistant:** follow section 14 of `docs/setup/home-assistant.md`, 14.1 to 14.6, then 14.11
+   for the dashboard.
 5. **On a new machine only,** to run the tests: `.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`.
 
 Roll back, if needed:
@@ -193,6 +217,15 @@ lists all three, soonest first.** "Cancel my alarm": **pass: it says there are t
 which.** "Cancel my 8:30 AM alarm": **pass: only that one goes.** "Cancel all alarms": **pass: none
 are left.**
 
+**11a. Set from the app.** On the Alarms dashboard, set Alarm 2's time to two minutes from now and
+switch it on. **Pass: it rings on the hub at that minute and Alarm 2 switches itself off.** Then set
+one by voice and check it appears on the dashboard, change its time there, and ask "when is my
+alarm?": **pass: the hub says the new time.**
+
+**11b. Odd ways of saying a time.** "Set an alarm for three ten PM", then one for "7:30", then
+"set an alarm for when I get home". **Pass: the first two are set correctly; the third answers that
+it did not catch the time, and none of them is answered by Claude.** Cancel them.
+
 **12. Without AM or PM.** "Set an alarm for" an hour that is next due in the other half of the day
 than you might assume. **Pass: it announces the next occurrence, with "tomorrow" when it falls
 tomorrow.** Cancel it.
@@ -218,7 +251,7 @@ ringing switches to the alarm sound and colour, and one knob turn stops everythi
     git push origin sat-hub-v6
 
 Checks Claude ran:
-- `pytest homeassistant`: 89 passed (53 phrase checks, 36 logic checks).
+- `pytest homeassistant`: 153 passed (58 phrase checks, 95 logic checks).
 - `esphome config`: valid, using a temporary copy with the example secrets (the real `secrets.yaml`
   was never opened).
 - `esphome compile`: passes for 0.6.0. Flash use is 19.6% (1.59 MB of the 8.1 MB app space), RAM 39.7%.
@@ -228,6 +261,14 @@ Checks Claude ran:
 ## Deviations from the plan
 - **Several alarms instead of one** (Will's decision when confirming the plan). Built as five slots,
   because Home Assistant helpers have no growing list. Five is Claude's choice.
+- **An Alarms dashboard was added** (Will's request during testing). The milestone list had remote
+  alarm setting in M6; the alarm part is now here, and M6 keeps the robot status and history.
+- **Slots hold a time of day, not a date and time** as first built, so the app only needs a time
+  and a switch.
+- **The spoken time is parsed by a script, not by the phrase file** as first built, after a real
+  phrase was missed.
+- **The Home Assistant files are named `hub_alarms.yaml`,** not `alarm.yaml`, after the mix-up with
+  the firmware file.
 - **Settings moved into the app** (Will's request when confirming the plan, to cover M4 as well).
   Ringing volumes, colours and the timer's timeout are entities on the satellite; the alarm timeout
   is a Home Assistant helper. Sound files and the silence between repeats stay in the firmware.
@@ -244,16 +285,19 @@ Checks Claude ran:
   handlers pass a script's reply back as speech (`action_response`) is the part most likely to need
   a fix.
 - **The entity and action names are assumed** from the device name (section 14.5 checks them).
-- **An alarm missed while Home Assistant is off does not fire late.** Its slot stays on with a time
-  in the past; cancel it or set a new one.
+- **An alarm missed while Home Assistant is off does not fire late.** Its slot stays on and it
+  rings the next day at that time, unless it is cancelled.
 - **A second alarm that fires while one is ringing is dropped.** Its slot still switches off.
 - **If the satellite is offline when an alarm fires,** the MQTT messages still go out and the robot
   runs, but nothing rings and only the robot or the timeout can stop it.
 - **If Home Assistant disappears mid-alarm,** the satellite keeps ringing until the knob is turned
   or its 30-minute safety limit.
 - **Five alarms at most, each firing once.** No snooze and no repeat.
-- **Minutes said as words are limited** to o'clock, oh five, ten, fifteen, twenty, thirty, forty,
-  forty five and fifty. Digits always work.
+- **Minutes said as words are limited** to o'clock, oh five, fifteen, twenty, thirty, forty, forty
+  five and fifty. Digits always work. "Half past" and "quarter to" are not understood.
+- **Any sentence shaped like "set an alarm for ..." is now handled locally,** even when the rest is
+  not a time. The hub then says it did not catch the time instead of passing it to Claude.
+- **The dashboard's entity ids for the satellite are assumed,** like the names in section 14.5.
 - **"Stop" and "Hey Jarvis" over a 75% alarm** may be hard for the hub to hear; the knob always
   works.
 - **Changing a colour or volume while the hub is ringing** takes effect for the colour at once and

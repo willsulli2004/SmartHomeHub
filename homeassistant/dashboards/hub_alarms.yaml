@@ -3,7 +3,7 @@
 # alarms set by voice, because both write the same five alarm slots.
 #
 # This file is pasted into a dashboard's "Raw configuration editor"; the steps
-# are in section 14.7 of docs/setup/home-assistant.md. It is not copied into
+# are in section 14.11 of docs/setup/home-assistant.md. It is not copied into
 # /config like the package.
 #
 # To set an alarm: pick a slot's time, then switch that slot on. It rings the
