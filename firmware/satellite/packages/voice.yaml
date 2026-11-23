@@ -5,11 +5,19 @@
 # player in audio.yaml. No audio leaves the device until the wake word is heard.
 
 substitutions:
-  # Digital microphone gain, 1 to 64. The Arduino tests proved +30 dB for far-field
-  # pickup (a shift of 11 instead of 16 from the 32-bit slot = 2^5 = 32x).
-  # Lower it if close or loud speech clips; raise it if the wake word is missed
-  # from across the room.
-  mic_gain_factor: "32"
+  # Digital microphone gain, 1 to 64 (each doubling adds 6 dB).
+  #
+  # The Arduino tests used 32x (+30 dB) for far-field speech-to-text in open air.
+  # In the assembled hub that is too much: the Mic Peak sensor below read 0.0 dB,
+  # which is clipping, whenever the room was noisy or the hub had just spoken, and
+  # the wake word went deaf until it quietened down (firmware 0.3.3).
+  # 4x (+12 dB) is 18 dB lower and is the usual value for this kind of I2S mic.
+  #
+  # To tune: watch Mic Peak in Home Assistant while speaking normally from where
+  # you would stand. Aim for speech peaks between about -20 and -6 dB, and never
+  # 0. Raise the gain if the wake word is missed from across the room; lower it if
+  # the peak touches 0.
+  mic_gain_factor: "4"
 
 micro_wake_word:
   id: mww
