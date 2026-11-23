@@ -10,8 +10,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 |---|---|---|---|
 | M0 | Repo and workflow | Nov 20 | merged |
 | M1 | Home Assistant on Proxmox | Nov 21 | merged |
-| M2 | ESPHome satellite base | Nov 23 | in review |
-| M3 | Satellite controls and feedback | Nov 24 | planned |
+| M2 | ESPHome satellite base | Nov 23 | merged |
+| M3 | Satellite controls and feedback | Nov 24 | in review |
 | M4 | Core voice | Nov 25 | planned |
 | M5 | Alarms | Nov 27 | planned |
 | M6 | Robot link and local server | Nov 29 | planned |
