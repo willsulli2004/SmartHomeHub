@@ -68,6 +68,21 @@ speaker:
     # pin (see docs/milestones/M02-esphome-satellite-base.md).
 
 script:
+  # Un-mutes the amp and cancels any pending re-mute.
+  - id: amp_wake
+    mode: restart
+    then:
+      - script.stop: amp_sleep
+      - switch.turn_off: amp_mute
+
+  # Mutes the amp once nothing has played for a second. A new sound within that
+  # second cancels it (amp_wake stops this script).
+  - id: amp_sleep
+    mode: restart
+    then:
+      - delay: 1s
+      - switch.turn_on: amp_mute
+
   # Lowers the drive strength of the three DAC signal pins from the default
   # (about 20 mA) to the weakest setting (about 5 mA). Weaker drive means slower
   # signal edges, and slower edges couple far less interference into neighbouring
@@ -88,6 +103,27 @@ esphome:
       then:
         - script.execute: soften_dac_signals
 
+switch:
+  # MAX9744 MUTE on GPIO4. Grounding MUTE silences the amp, including its idle
+  # hum; releasing it lets the amp board's own weak pull bring it back to
+  # "playing" (Will measured the pin floating between about 0 and 3 V).
+  #
+  # Open-drain only: the ESP32 either pulls the pin to ground or lets go. It
+  # never drives it high. ON = muted.
+  #
+  # The wire is fitted last, when the enclosure is finished. Until then this
+  # switches a pin with nothing attached, which is harmless.
+  - platform: gpio
+    id: amp_mute
+    internal: true
+    restore_mode: ALWAYS_ON
+    pin:
+      number: GPIO4
+      inverted: true
+      mode:
+        output: true
+        open_drain: true
+
 media_player:
   # The only route to the speaker. Voice replies use it now; the volume knob (M3)
   # and alarms (M5) will use it too, so all of them inherit the cap.
@@ -103,3 +139,11 @@ media_player:
     volume_min: 0.0
     volume_max: ${speaker_volume_max}
     volume_increment: 0.02
+    # Un-mute the amp as soon as a sound is on its way, and mute it again once
+    # playback has been idle for a second.
+    on_announcement:
+      - script.execute: amp_wake
+    on_play:
+      - script.execute: amp_wake
+    on_idle:
+      - script.execute: amp_sleep
