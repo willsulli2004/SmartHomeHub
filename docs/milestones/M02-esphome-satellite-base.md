@@ -136,11 +136,17 @@ distorts, stop and report it. Not done on the rebuilt hub.
 
 **6. Tag.** With the tests above passing on the firmware that is running:
 
-    git tag -a sat-hub-v2 -m "Satellite firmware v2: rebuilt hub, wake word, LED ring"
-    git push origin sat-hub-v2
+    git tag -a sat-hub-v3 3847a0b -m "Satellite firmware v3: rebuilt hub, wake word, LED ring, mute on GPIO5"
+    git push origin sat-hub-v3
 
-The existing `sat-hub-v1` tag is firmware 0.2.0 for the first build's wiring. Do not flash it on the
-rebuilt hub: its audio pins are wrong for this hardware.
+`3847a0b` is the commit holding firmware 0.3.5. Naming the commit means the tag lands on the right
+firmware even if newer commits have been pulled since.
+
+Two older tags exist and are not rollback targets for the finished hub:
+- `sat-hub-v1` is firmware 0.2.0 for the first build's wiring. Do not flash it on the rebuilt hub: its
+  audio pins are wrong for this hardware.
+- `sat-hub-v2` is firmware 0.3.4. It was tagged just before the mute button moved, so it still expects
+  the button on GPIO45. Everything else in it works on the rebuilt hub, but mute does not.
 
 **7. OTA of a newer build.** Tell Claude the tag is pushed. Claude pushes firmware 0.3.6, a version
 bump only. Then:
@@ -152,7 +158,7 @@ bump only. Then:
 
 **8. Rollback.**
 
-    git checkout sat-hub-v2
+    git checkout sat-hub-v3
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
 **Pass: Firmware reads `0.3.5` again and test 2 works.** Then return to the newer build:
@@ -201,8 +207,9 @@ These cost many test builds. They are recorded so they are not repeated.
 - **Mic gain is 4 times, not the 32 proven in the Arduino tests.**
 - **A firmware version, two mic level sensors and a Status Ring light were added** to make testing
   and tuning possible from Home Assistant.
-- **`sat-hub-v1` was tagged on the first build at 0.2.0**, before these problems were found. The
-  rebuilt hub starts from `sat-hub-v2`.
+- **`sat-hub-v1` was tagged on the first build at 0.2.0**, before these problems were found, and
+  `sat-hub-v2` landed on 0.3.4, one commit before the mute button moved to GPIO5. Tags are never moved,
+  so the rebuilt hub's rollback point is `sat-hub-v3` (0.3.5).
 - **Two Windows environment variables were added** for the build.
 - **The example API key changed**, because ESPHome rejects an all-zero key.
 - **The speaker runs mono on the left channel at 48 kHz.** The amp only has its left input connected.
