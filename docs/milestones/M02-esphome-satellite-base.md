@@ -5,10 +5,9 @@ Status: in review   Branch: `milestone/M02-satellite-base`   PR: https://github.
 The satellite runs ESPHome, talks to Home Assistant, and updates over Wi-Fi from now on.
 
 ## Where it stands
-Firmware 0.3.4 on the rebuilt hub: "Hey Jarvis" is heard from across the room, questions are answered
+Firmware 0.3.5 on the rebuilt hub: "Hey Jarvis" is heard from across the room, questions are answered
 aloud, the LED ring shows listening and speaking, and updates go over Wi-Fi. Still open before merge:
-the 100% volume check, the tag and rollback test, and the mute button, which is not wired on the
-rebuilt hub.
+the 100% volume check, the mute button test, and the tag and rollback test.
 
 ## What was built
 - `firmware/satellite/sat-hub.yaml` — new. Board (ESP32-S3 N16R8, 16MB flash, octal PSRAM), Wi-Fi with
@@ -19,7 +18,7 @@ rebuilt hub.
   strength of the DAC's signal pins.
 - `firmware/satellite/packages/voice.yaml` — new. On-device "Hey Jarvis" wake word, the voice
   assistant, the microphone gain as one setting, and two microphone level sensors.
-- `firmware/satellite/packages/controls.yaml` — new. The GPIO45 mute button and the mute scripts.
+- `firmware/satellite/packages/controls.yaml` — new. The mute button on GPIO5 and the mute scripts.
 - `firmware/satellite/packages/leds.yaml` — new. Status colours on the 24-LED ring, its brightness
   cap, and a once-a-second re-send of the current frame.
 - `firmware/satellite/secrets.example.yaml` — changed. The placeholder API key was all zeros, which
@@ -46,7 +45,7 @@ The hub was rebuilt with a new ESP32 on November 22nd, 2026, partway through thi
 | Mic I2S | BCLK 42, WS 1, DIN 2 |
 | DAC I2S | BCK 40, WS 38, DOUT 39 |
 | LED ring | GPIO41, DFRobot 24-LED WS2812 ring |
-| Mute button | GPIO45, input, internal pull-up only, `ignore_strapping_warning: true`; not wired yet |
+| Mute button | GPIO5 to ground, input with the internal pull-up |
 | Encoder | SDA 21, SCL 47; not used by this firmware (M3) |
 
 ### Speaker level cap (hard rule 3)
@@ -120,7 +119,7 @@ encryption key, and choose the Jewel assistant.
 Claude cannot hear the speaker or see the ring. Pass criteria are in bold.
 
 **1. Boot and connection.** **Pass: the device page shows the satellite online, Firmware reads
-`0.3.4 (ESPHome 2026.11.0)`, and the ring is off.** Done.
+`0.3.5 (ESPHome 2026.11.0)`, and the ring is off.**
 
 **2. Wake word and answer.** Say "Hey Jarvis", then "what time is it?". **Pass: the ring turns blue,
 then green while the answer is spoken, then off.** Done.
@@ -143,34 +142,32 @@ distorts, stop and report it. Not done on the rebuilt hub.
 The existing `sat-hub-v1` tag is firmware 0.2.0 for the first build's wiring. Do not flash it on the
 rebuilt hub: its audio pins are wrong for this hardware.
 
-**7. OTA of a newer build.** Tell Claude the tag is pushed. Claude pushes firmware 0.3.5, a version
+**7. OTA of a newer build.** Tell Claude the tag is pushed. Claude pushes firmware 0.3.6, a version
 bump only. Then:
 
     git pull
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-**Pass: Firmware reads `0.3.5` and test 2 still works.**
+**Pass: Firmware reads `0.3.6` and test 2 still works.**
 
 **8. Rollback.**
 
     git checkout sat-hub-v2
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-**Pass: Firmware reads `0.3.4` again and test 2 works.** Then return to the newer build:
+**Pass: Firmware reads `0.3.5` again and test 2 works.** Then return to the newer build:
 
     git checkout milestone/M02-satellite-base
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-**9. Mute, once the button is wired** (GPIO45 to ground only, no external pull-up). **Pass: latched
-turns the ring red, turns the Mute entity on, and "Hey Jarvis" gets no reaction; unlatched restores
-it.** This passed on the first build. It cannot be tested on the rebuilt hub until the button is
-wired.
+**9. Mute.** The button is on GPIO5, wired to ground only. Do this test before tagging. **Pass:
+latched turns the ring red, turns the Mute entity on, and "Hey Jarvis" gets no reaction; unlatched
+restores it; latching in the middle of a question stops the conversation.** This passed on the first
+build with the button on GPIO45.
 
 Checks Claude ran, using a temporary copy with the example secrets (the real `secrets.yaml` was never
 opened):
-- `esphome config`: valid for 0.3.4.
-- `esphome compile`: passes for 0.3.3. Firmware 0.3.4 differs from it by one number, the mic gain,
-  and was validated but not separately compiled by Claude; Will's own flash built it.
+- `esphome config` and `esphome compile`: pass for 0.3.5.
 
 ## What this milestone learned
 These cost many test builds. They are recorded so they are not repeated.
@@ -209,14 +206,16 @@ These cost many test builds. They are recorded so they are not repeated.
 - **Two Windows environment variables were added** for the build.
 - **The example API key changed**, because ESPHome rejects an all-zero key.
 - **The speaker runs mono on the left channel at 48 kHz.** The amp only has its left input connected.
-- **Mute is untested on the rebuilt hub**, because the button is not wired yet.
+- **The mute button moved from GPIO45 to GPIO5** in the rebuilt hub. GPIO45 is a strapping pin, and
+  using an ordinary pin removes the risk of a wiring mistake stopping the ESP32 from booting.
 
 ## Known limitations / follow-ups
 - **The speaker hums when idle.** Tests with a diagnostic build on the first hub showed the hum in
   every state of the DAC's signal pins, quietest with the I2S output stopped, which is the current
   behaviour. Firmware cannot remove it. Parked by Will. The planned fix is the amp's MUTE pin on GPIO4
-  (open-drain, only after Will measures that MUTE idles at 3.6V or less); wiring and grounding are the
-  other suspects. Its level on the rebuilt hub has not been reported.
+  (open-drain). Will measured it on the rebuilt hub: the pin floats between about 0 and 3V, and
+  connecting it to ground silences the amp and the hum. He will wire it last, when the enclosure is
+  finished; the firmware side is planned for M3.
 - **Three firmware measures are unproven.** They were added while chasing the LED freeze and the
   deaf wake word, before mic gain turned out to be the cause of the second. They are harmless and the
   hub works with them, so they stay until M3 reworks the LEDs, when each can be removed and tested:

@@ -112,8 +112,8 @@ an explicit test checklist.
 ## Hard rules: never break these
 1. **GPIO45 is a strapping pin.** It must be low at boot, otherwise the chip selects 1.8V flash.
    - Never pull it high, never add an external pull-up, never drive it as an output.
-   - Only an internal pull-up after boot (mute button to GND). In ESPHome this needs
-     `ignore_strapping_warning: true`; that is expected.
+   - Nothing is connected to it in the rebuilt hub (the mute button moved to GPIO5). Keep it that way
+     unless Will decides otherwise.
 2. **USB-C PD (HUSB238) stays at 12V.** Never 15V or 20V. The MAX9744's maximum is 14V.
 3. **Speaker level is capped at 0.5 of digital full scale (−6 dBFS).** The DAC's 2.1 Vrms full scale
    overdrives the amp.
@@ -131,8 +131,10 @@ an explicit test checklist.
 ## Hardware constraints
 - **MAX9744 I2C:** its I2C lines are cut and it runs in analog volume mode (a pot sets the max level).
   Never write I2C code for the amp.
-- **MAX9744 MUTE:** not connected. It is planned on GPIO4 (free since the camera was dropped), open-drain
-  only, after Will measures that MUTE idles at 3.6V or less. Do not drive it until Will confirms.
+- **MAX9744 MUTE:** not connected yet. It is planned on GPIO4 (free since the camera was dropped),
+  open-drain only. Will measured it on November 22nd, 2026: the pin floats between about 0 and 3V (under
+  the 3.6V limit), and connecting it to ground mutes the amp, including the idle hum. Will wires it last,
+  when the enclosure is finished. Do not drive it until Will confirms it is wired.
 - **LED ring current:** the 24-LED WS2812 ring is on its own buck with a ~1.2A budget. 24 LEDs at full
   white would draw ~1.44A, so cap brightness in software. The firmware caps every channel at 80%
   (worst case 1.15A).
@@ -142,7 +144,8 @@ an explicit test checklist.
   - GPIO0, 3, 46: strapping pins.
   - GPIO19/20: native USB.
   - GPIO43/44: UART0.
-- **Camera pins (GPIO4–18):** free, but ask before assigning them.
+- **Camera pins (GPIO4–18):** free, but ask before assigning them. GPIO4 is reserved for the amp MUTE and
+  GPIO5 is the mute button.
 
 ## Hardware and pin map
 | Component | Interface | Pins / settings |
@@ -151,10 +154,10 @@ an explicit test checklist.
 | PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 40, WS 38, DOUT 39 |
 | Seesaw rotary encoder (0x36) | I2C bus 0 | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 |
 | DFRobot WS2812 RGB LED ring, 24 LEDs | addressable LED | DATA 41 |
-| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO45 (not wired yet in the rebuilt hub) |
+| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO5 |
 
 The pin map above is the rebuilt hub (new ESP32, November 22nd, 2026). The first build used DAC BCK 39,
-WS 40, DOUT 38 and a 71-LED WS2812B strip.
+WS 40, DOUT 38, a 71-LED WS2812B strip, and the mute button on GPIO45.
 
 Proven in the Arduino tests:
 - **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gave good far-field pickup in open air.
