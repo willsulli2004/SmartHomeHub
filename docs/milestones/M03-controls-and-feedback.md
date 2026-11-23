@@ -1,5 +1,5 @@
 # M03 — Satellite controls and feedback
-Status: in review   Branch: `milestone/M03-controls-feedback`   PR: to be added when the PR is opened
+Status: in review   Branch: `milestone/M03-controls-feedback`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/5
 
 ## Goal
 The satellite feels like a finished device: the knob changes the volume, the ring shows what the hub
