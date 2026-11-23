@@ -24,13 +24,16 @@ substitutions:
 
 i2s_audio:
   # ICS-43434 microphone.
+  # BCLK is on GPIO43, which is also the chip's UART0 TX pin. That is fine as long
+  # as logging stays on USB (see logger in sat-hub.yaml); the boot ROM prints a few
+  # lines on it at power-up, which the microphone ignores.
   - id: i2s_mic_bus
-    i2s_bclk_pin: GPIO42
+    i2s_bclk_pin: GPIO43
     i2s_lrclk_pin: GPIO1
   # PCM5102 DAC -> MAX9744 amp (analog volume mode, left input).
   - id: i2s_spk_bus
-    i2s_bclk_pin: GPIO39
-    i2s_lrclk_pin: GPIO40
+    i2s_bclk_pin: GPIO40
+    i2s_lrclk_pin: GPIO38
 
 microphone:
   # 24-bit samples in a 32-bit slot, left channel (SEL tied to GND), 16 kHz.
@@ -50,7 +53,7 @@ speaker:
   - platform: i2s_audio
     id: i2s_spk
     i2s_audio_id: i2s_spk_bus
-    i2s_dout_pin: GPIO38
+    i2s_dout_pin: GPIO39
     dac_type: external
     sample_rate: 48000
     bits_per_sample: 16bit
