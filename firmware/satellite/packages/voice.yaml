@@ -105,7 +105,7 @@ voice_assistant:
   # Timers are set, checked and cancelled by Home Assistant's own voice commands.
   # Home Assistant tells the satellite when one finishes; the satellite rings.
   on_timer_finished:
-    - script.execute: ring_start
+    - script.execute: timer_ring
 
 sensor:
   # Microphone level as the wake word engine hears it (same gain applied), shown
