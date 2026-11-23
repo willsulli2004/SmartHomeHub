@@ -6,6 +6,9 @@
 #   packages/voice.yaml     "Hey Jarvis" wake word and the voice assistant
 #   packages/controls.yaml  mute button and volume knob
 #   packages/leds.yaml      status colours and volume display on the LED ring
+#   packages/alarm.yaml     ringing for a finished timer (and alarms, from M5)
+#
+# Sounds built into the firmware live in sounds/.
 #
 # The project's own C++ components live in components/ (see external_components).
 #
@@ -20,7 +23,7 @@ substitutions:
   friendly_name: Satellite Hub
   # Shown in Home Assistant on the device page as "Firmware". Bump it for every
   # build that gets flashed, so the running build can be identified.
-  firmware_version: "0.4.1"
+  firmware_version: "0.5.0"
 
 esphome:
   name: ${name}
@@ -86,3 +89,4 @@ packages:
   voice: !include packages/voice.yaml
   controls: !include packages/controls.yaml
   leds: !include packages/leds.yaml
+  alarm: !include packages/alarm.yaml

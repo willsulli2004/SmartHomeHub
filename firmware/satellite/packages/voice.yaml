@@ -3,6 +3,8 @@
 # Flow: micro_wake_word hears "Hey Jarvis" on the device -> voice_assistant streams
 # the following speech to Home Assistant -> the reply plays through the media
 # player in audio.yaml. No audio leaves the device until the wake word is heard.
+#
+# A second on-device word, "stop", silences a ringing timer (see alarm.yaml).
 
 substitutions:
   # Digital microphone gain, 1 to 64 (each doubling adds 6 dB).
@@ -29,15 +31,33 @@ micro_wake_word:
   models:
     - model: hey_jarvis
       id: hey_jarvis
+    # "Stop" silences a ringing timer. It only listens while the hub is ringing:
+    # alarm.yaml switches it off at start-up and on again for each ring.
+    # internal: it is not offered in Home Assistant as a wake word.
+    # The model is not in ESPHome's own model list. This is the file the official
+    # Home Assistant Voice PE firmware uses, from the wake word engine's author.
+    - model: https://github.com/kahrendt/microWakeWord/releases/download/stop/stop.json
+      id: stop_word
+      internal: true
   vad:
   on_wake_word_detected:
     - if:
         condition:
-          not:
-            voice_assistant.is_running:
+          lambda: return id(ringing);
         then:
-          - voice_assistant.start:
-              wake_word: !lambda return wake_word;
+          # While ringing, either word means "stop" and no conversation starts.
+          - script.execute: ring_stop
+        else:
+          - if:
+              condition:
+                and:
+                  - not:
+                      voice_assistant.is_running:
+                  # Belt and braces: "stop" must never start a conversation.
+                  - lambda: return wake_word != id(stop_word)->get_wake_word();
+              then:
+                - voice_assistant.start:
+                    wake_word: !lambda return wake_word;
 
 voice_assistant:
   id: va
@@ -82,6 +102,10 @@ voice_assistant:
     - script.execute: status_light_idle
   on_error:
     - script.execute: status_light_error
+  # Timers are set, checked and cancelled by Home Assistant's own voice commands.
+  # Home Assistant tells the satellite when one finishes; the satellite rings.
+  on_timer_finished:
+    - script.execute: ring_start
 
 sensor:
   # Microphone level as the wake word engine hears it (same gain applied), shown

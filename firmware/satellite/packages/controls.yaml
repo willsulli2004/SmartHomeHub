@@ -9,6 +9,7 @@
 # media player's volume_increment (2%). The knob changes volume through the media
 # player, never the speaker directly, so the speaker level cap in audio.yaml
 # applies to it. Only rotation is used: the enclosure cannot press the knob.
+# While a timer is ringing, turning the knob stops the ringing instead.
 
 i2c:
   - id: i2c_bus
@@ -24,12 +25,26 @@ seesaw_encoder:
   # True because on this hub the knob counts the other way round: without it,
   # turning clockwise made it quieter (found in M3 testing).
   inverted: true
+  # While the hub is ringing, a turn either way stops the ringing and leaves the
+  # volume alone (the knob cannot be pressed in this enclosure).
   on_clockwise:
-    - media_player.volume_up: sat_media_player
-    - script.execute: status_light_volume
+    - if:
+        condition:
+          lambda: return id(ringing);
+        then:
+          - script.execute: ring_stop
+        else:
+          - media_player.volume_up: sat_media_player
+          - script.execute: status_light_volume
   on_anticlockwise:
-    - media_player.volume_down: sat_media_player
-    - script.execute: status_light_volume
+    - if:
+        condition:
+          lambda: return id(ringing);
+        then:
+          - script.execute: ring_stop
+        else:
+          - media_player.volume_down: sat_media_player
+          - script.execute: status_light_volume
 
 binary_sensor:
   - platform: gpio
