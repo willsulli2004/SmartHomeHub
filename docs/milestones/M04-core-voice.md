@@ -16,8 +16,9 @@ Will then asked for two changes, built as firmware 0.5.1:
 - the ringing light is three purple LEDs circling the ring instead of a pulse
 - the prompt asks Claude for shorter answers
 
-Still to do: flash 0.5.1 and check tests 1, 6 and 12 again, the one-day soak, and the `sat-hub-v5`
-tag.
+Later on November 23rd: on 0.5.1 the answers were much shorter and the circling light worked, but
+it looked blue. Firmware 0.5.2 adds red to all three LEDs. On 0.5.2 Will reports that all tests pass.
+The one-day soak was not run as a full day. Still to do: the `sat-hub-v5` tag.
 
 ## What was built
 - `firmware/satellite/packages/alarm.yaml` — new. The ringing logic: `ring_start` and `ring_stop`,
@@ -188,9 +189,9 @@ Note which it did. Plug the cable back in and check a question works again.
 **16. Soak.** Use the hub normally for a day. **Pass: no stuck ringing, no "stop" false triggers,
 the ring never freezes and the wake word never goes deaf.**
 
-**17. Tag.** When the tests above pass:
+**17. Tag.** When the tests above pass (`fa0bea3` is the commit holding firmware 0.5.2):
 
-    git tag -a sat-hub-v5 -m "Satellite firmware v5: timers ring, stop word, core voice"
+    git tag -a sat-hub-v5 fa0bea3 -m "Satellite firmware v5: timers ring, stop word, core voice"
     git push origin sat-hub-v5
 
 Checks Claude ran, using a temporary copy with the example secrets (the real `secrets.yaml` was never
