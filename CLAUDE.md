@@ -131,10 +131,11 @@ an explicit test checklist.
 ## Hardware constraints
 - **MAX9744 I2C:** its I2C lines are cut and it runs in analog volume mode (a pot sets the max level).
   Never write I2C code for the amp.
-- **MAX9744 MUTE:** not connected yet. It is planned on GPIO4 (free since the camera was dropped),
-  open-drain only. Will measured it on November 22nd, 2026: the pin floats between about 0 and 3V (under
-  the 3.6V limit), and connecting it to ground mutes the amp, including the idle hum. Will wires it last,
-  when the enclosure is finished. Do not drive it until Will confirms it is wired.
+- **MAX9744 MUTE:** on GPIO4, open-drain only: the firmware pulls it to ground to mute, or lets go. Never
+  drive it high. Will measured it on November 22nd, 2026: the pin floats between about 0 and 3V (under
+  the 3.6V limit), and connecting it to ground mutes the amp, including the idle hum. The firmware has
+  driven GPIO4 since M3 (muted when idle, released for each sound). Will fitted the wire and tested it
+  on November 23rd, 2026: no hum when idle, and no reply has its first word cut off.
 - **LED ring current:** the 24-LED WS2812 ring is on its own buck with a ~1.2A budget. 24 LEDs at full
   white would draw ~1.44A, so cap brightness in software. The firmware caps every channel at 80%
   (worst case 1.15A).
@@ -152,7 +153,8 @@ an explicit test checklist.
 |---|---|---|
 | ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 42, WS 1, DIN 2 |
 | PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 40, WS 38, DOUT 39 |
-| Seesaw rotary encoder (0x36) | I2C bus 0 | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 |
+| Seesaw rotary encoder (0x36) | I2C bus 0, read by `components/seesaw_encoder/`, `inverted: true` | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 (switch and pixel unused) |
+| MAX9744 MUTE | open-drain output, low = muted | GPIO4 |
 | DFRobot WS2812 RGB LED ring, 24 LEDs | addressable LED | DATA 41 |
 | Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO5 |
 
@@ -175,9 +177,16 @@ Learned in M2 on the assembled hub (details in `docs/milestones/M02-esphome-sate
 Board: ESP32-S3-DevKitC-1 N16R8 clone, 16MB flash, 8MB octal PSRAM. Hostname `sat-hub`.
 
 Power: HUSB238 at 12V feeds the MAX9744 VDD and two MPM3610 5V bucks.
-- Buck A: devkit 5V (logic).
-- Buck B: LED ring.
+- Buck A: LED ring.
+- Buck B: devkit 5V (logic).
 - Star grounding.
+
+Will swapped the two bucks on November 23rd, 2026 (Buck A used to feed the devkit and Buck B the LEDs).
+With Buck B on the LEDs, they froze on their last colour after spoken replies, on both hub builds;
+after the swap the freeze stopped. The bucks' output voltages were not measured. The likely cause is the
+LED supply voltage: WS2812 LEDs need the data signal to reach about 70% of their supply, and the
+ESP32's 3.3V signal is borderline at 5V. Do not swap the bucks back. If the freeze returns, measure the
+LED supply first; a diode in the LED power lead or a level shifter on the data wire gives real margin.
 
 ## Code conventions
 - **ESPHome:**

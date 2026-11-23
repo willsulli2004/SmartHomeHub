@@ -1,12 +1,18 @@
-# LEDs: status colours on the DFRobot 24-LED WS2812 ring (DATA on GPIO41).
+# LEDs: status colours and the volume display on the DFRobot 24-LED WS2812 ring
+# (DATA on GPIO41).
 #
-# M2 only shows a solid colour per state. M3 adds the full set of LED states and
-# animations and the encoder's pixel.
+#   off            idle, waiting for the wake word
+#   blue           wake word heard, listening
+#   amber          thinking (waiting for the answer)
+#   green          speaking
+#   red            muted
+#   red, 1 second  something went wrong
+#   white arc      volume, for 1.5 seconds after the knob is turned
 #
-#   off         idle, waiting for the wake word
-#   blue        wake word heard, listening
-#   green       thinking / speaking
-#   red         muted
+# How it works: ring_state holds what the hub is doing. The small scripts at the
+# bottom set it and call status_light_apply, which is the one place that decides
+# the colour. Mute wins over everything. Timers (M4) and alarms (M5) add their
+# own states the same way.
 #
 # The ring must always be driven by the firmware. Left undriven, its data line
 # floats and picks up noise from the audio signals beside it.
@@ -46,6 +52,15 @@ light:
     color_correct: ["${led_max_level}", "${led_max_level}", "${led_max_level}"]
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
+    effects:
+      # Lights the first part of the ring in proportion to the volume.
+      - addressable_lambda:
+          name: Volume
+          update_interval: 50ms
+          lambda: |-
+            const int lit = (int) roundf(id(sat_media_player).volume * it.size());
+            for (int i = 0; i < it.size(); i++)
+              it[i] = i < lit ? Color(255, 255, 255) : Color::BLACK;
 
 interval:
   # Safety net: re-send the current LED frame once a second.
@@ -61,29 +76,17 @@ interval:
     then:
       - lambda: static_cast<light::AddressableLight *>(id(status_light).get_output())->schedule_show();
 
+globals:
+  # What the hub is doing, as shown on the ring:
+  # 0 idle, 1 listening, 2 thinking, 3 speaking.
+  - id: ring_state
+    type: int
+    restore_value: false
+    initial_value: "0"
+
 script:
-  - id: status_light_listening
-    mode: restart
-    then:
-      - light.turn_on:
-          id: status_light
-          brightness: 100%
-          red: 0%
-          green: 0%
-          blue: 100%
-
-  - id: status_light_busy
-    mode: restart
-    then:
-      - light.turn_on:
-          id: status_light
-          brightness: 100%
-          red: 0%
-          green: 100%
-          blue: 0%
-
-  # Shows the resting state: red while muted, otherwise off.
-  - id: status_light_idle
+  # The one place that turns ring_state (and mute) into a colour.
+  - id: status_light_apply
     mode: restart
     then:
       - if:
@@ -92,12 +95,110 @@ script:
           then:
             - light.turn_on:
                 id: status_light
+                effect: none
                 brightness: 70%
                 red: 100%
                 green: 0%
                 blue: 0%
           else:
-            - light.turn_off: status_light
+            - if:
+                condition:
+                  lambda: return id(ring_state) == 1;
+                then:
+                  - light.turn_on:
+                      id: status_light
+                      effect: none
+                      brightness: 100%
+                      red: 0%
+                      green: 0%
+                      blue: 100%
+                else:
+                  - if:
+                      condition:
+                        lambda: return id(ring_state) == 2;
+                      then:
+                        - light.turn_on:
+                            id: status_light
+                            effect: none
+                            brightness: 100%
+                            red: 100%
+                            green: 55%
+                            blue: 0%
+                      else:
+                        - if:
+                            condition:
+                              lambda: return id(ring_state) == 3;
+                            then:
+                              - light.turn_on:
+                                  id: status_light
+                                  effect: none
+                                  brightness: 100%
+                                  red: 0%
+                                  green: 100%
+                                  blue: 0%
+                            else:
+                              - light.turn_off: status_light
+
+  - id: status_light_idle
+    mode: restart
+    then:
+      - globals.set:
+          id: ring_state
+          value: "0"
+      - script.execute: status_light_apply
+
+  - id: status_light_listening
+    mode: restart
+    then:
+      - globals.set:
+          id: ring_state
+          value: "1"
+      - script.execute: status_light_apply
+
+  - id: status_light_thinking
+    mode: restart
+    then:
+      - globals.set:
+          id: ring_state
+          value: "2"
+      - script.execute: status_light_apply
+
+  - id: status_light_speaking
+    mode: restart
+    then:
+      - globals.set:
+          id: ring_state
+          value: "3"
+      - script.execute: status_light_apply
+
+  # A one-second red flash, then back to idle.
+  - id: status_light_error
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_light
+          effect: none
+          brightness: 100%
+          red: 100%
+          green: 0%
+          blue: 0%
+      - delay: 1s
+      - script.execute: status_light_idle
+
+  # Shows the volume as a white arc for 1.5 seconds, then returns to whatever
+  # the hub is doing. Turning the knob again restarts the 1.5 seconds.
+  - id: status_light_volume
+    mode: restart
+    then:
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 100%
+          green: 100%
+          blue: 100%
+          effect: Volume
+      - delay: 1500ms
+      - script.execute: status_light_apply
 
 esphome:
   on_boot:

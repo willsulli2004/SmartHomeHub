@@ -1,8 +1,35 @@
-# Controls: the mute button.
+# Controls: the mute button and the volume knob.
 #
-# The button is a latching switch from GPIO5 to GND. Latched (closed) = muted.
+# Mute button: a latching switch from GPIO5 to GND. Latched (closed) = muted.
 # While muted: wake word detection is stopped, any conversation in progress is
 # stopped, and the microphone is muted, so no audio leaves the device.
+#
+# Volume knob: an Adafruit I2C rotary encoder (seesaw), read by the project's own
+# component in components/seesaw_encoder/. Each click moves the volume by the
+# media player's volume_increment (2%). The knob changes volume through the media
+# player, never the speaker directly, so the speaker level cap in audio.yaml
+# applies to it. Only rotation is used: the enclosure cannot press the knob.
+
+i2c:
+  - id: i2c_bus
+    sda: GPIO21
+    scl: GPIO47
+    frequency: 100kHz
+    scan: true
+
+seesaw_encoder:
+  id: volume_knob
+  i2c_id: i2c_bus
+  address: 0x36
+  # True because on this hub the knob counts the other way round: without it,
+  # turning clockwise made it quieter (found in M3 testing).
+  inverted: true
+  on_clockwise:
+    - media_player.volume_up: sat_media_player
+    - script.execute: status_light_volume
+  on_anticlockwise:
+    - media_player.volume_down: sat_media_player
+    - script.execute: status_light_volume
 
 binary_sensor:
   - platform: gpio

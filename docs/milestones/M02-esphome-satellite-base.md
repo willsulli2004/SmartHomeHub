@@ -1,5 +1,5 @@
 # M02 — ESPHome satellite base
-Status: in review   Branch: `milestone/M02-satellite-base`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/4
+Status: merged   Branch: `milestone/M02-satellite-base`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/4
 
 ## Goal
 The satellite runs ESPHome, talks to Home Assistant, and updates over Wi-Fi from now on.
@@ -233,6 +233,8 @@ These cost many test builds. They are recorded so they are not repeated.
   - the ring's frame re-sent once a second (`leds.yaml`)
   - the 500 ms wait before the ring turns off after a reply (`voice.yaml`)
   - the lowered drive strength on the DAC pins (`audio.yaml`)
+- **Update, November 23rd (M3):** the LED freeze below was traced to the LEDs' power supply. It
+  stopped when Will swapped the two buck converters. See the M03 milestone doc.
 - **The LED freeze was never fully explained.** On both hubs the LEDs sometimes froze on their last
   colour after a spoken reply. It has not been seen since firmware 0.3.2, but that is a short record.
   The LED data pin (41) still sits beside the DAC's bit clock (40). If it returns, move the data wire

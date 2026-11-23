@@ -10,8 +10,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 |---|---|---|---|
 | M0 | Repo and workflow | Nov 20 | merged |
 | M1 | Home Assistant on Proxmox | Nov 21 | merged |
-| M2 | ESPHome satellite base | Nov 23 | in review |
-| M3 | Satellite controls and feedback | Nov 24 | planned |
+| M2 | ESPHome satellite base | Nov 23 | merged |
+| M3 | Satellite controls and feedback | Nov 24 | in review |
 | M4 | Core voice | Nov 25 | planned |
 | M5 | Alarms | Nov 27 | planned |
 | M6 | Robot link and local server | Nov 29 | planned |
@@ -86,7 +86,8 @@ extras and M6's analytics before cutting alarms or the robot link.
   delivers rotation only. The press comes back when the enclosure is changed.
 - **HA entities:** volume, mute state and LED brightness exposed in Home Assistant.
 - **Sounds:** short feedback tones for volume changes and mute on/off.
-- **Optional:** amp MUTE on GPIO4, only if Will's measurement clears it.
+- **Amp MUTE on GPIO4:** cleared by Will's measurement, built in M3, wired and working. It removes the
+  idle hum.
 - **Done when:** every state shows correctly, the knob and HA volume stay in sync, and the cap holds at
   100%.
 
@@ -214,6 +215,13 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 ## Backlog
 - Demo mode: the satellite opens its own hotspot and serves a simple web page for showing off features
   from a phone, without the home network (asked for during M2; a candidate for M7 if time allows)
+- Cut from M3 to protect the December 1st deadline:
+  - feedback tones for volume changes and mute
+  - the encoder's own status light
+  - LED brightness control in Home Assistant
+  - the encoder press (needs a new enclosure)
+  - removing and testing the three unproven M2 measures (LED frame re-send, 500 ms ring delay,
+    lowered DAC pin drive)
 - Custom wake word (train a model for the hub's own name)
 - Automatic deploy on merge via the mini PC over Tailscale
 - Echo cancellation and ducking
