@@ -11,8 +11,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | M0 | Repo and workflow | Nov 20 | merged |
 | M1 | Home Assistant on Proxmox | Nov 21 | merged |
 | M2 | ESPHome satellite base | Nov 23 | merged |
-| M3 | Satellite controls and feedback | Nov 24 | in review |
-| M4 | Core voice | Nov 25 | planned |
+| M3 | Satellite controls and feedback | Nov 24 | merged |
+| M4 | Core voice | Nov 25 | in review |
 | M5 | Alarms | Nov 27 | planned |
 | M6 | Robot link and local server | Nov 29 | planned |
 | M7 | Demo hardening and report | Dec 1 | planned |
@@ -95,7 +95,7 @@ extras and M6's analytics before cutting alarms or the robot link.
 **Goal:** the everyday assistant basics work.
 - **Device control:** HA's built-in commands, on real devices or test helpers.
 - **Timers:** set, cancel and check timers. They ring on the satellite with the LED state, and stop by
-  voice or knob.
+  voice ("stop" or the wake word), by turning the knob, or after five minutes.
 - **Questions:** answered by Claude through HA's Anthropic integration, with local handling of commands
   preferred. Responses are short and written for speech.
 - **Done when:**
@@ -222,6 +222,9 @@ agent. Its design is discussed separately; this milestone covers only how the hu
   - the encoder press (needs a new enclosure)
   - removing and testing the three unproven M2 measures (LED frame re-send, 500 ms ring delay,
     lowered DAC pin drive)
+- Web search for Claude's answers: a switch in Home Assistant's Anthropic integration, left off in M4
+  (see section 13.4 of the Home Assistant setup guide)
+- A countdown on the LED ring while a timer runs
 - Custom wake word (train a model for the hub's own name)
 - Automatic deploy on merge via the mini PC over Tailscale
 - Echo cancellation and ducking

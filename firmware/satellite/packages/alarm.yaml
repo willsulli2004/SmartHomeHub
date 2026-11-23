@@ -1,0 +1,119 @@
+# Ringing: the repeating sound and LED state for a finished timer (M4). Alarms
+# (M5) will ring through the same two scripts.
+#
+#   ring_start   begin ringing; does nothing if already ringing
+#   ring_stop    stop ringing; does nothing if not ringing
+#
+# What starts and stops the ringing is decided elsewhere, so new triggers only
+# need to call these scripts:
+#   start   voice.yaml      a Home Assistant timer finishes
+#   stop    voice.yaml      "Hey Jarvis" or "stop" is heard
+#           controls.yaml   the knob is turned either way
+#           this file       ring_timeout passes with nobody stopping it
+#
+# The sound plays through the media player, never the speaker directly, so the
+# speaker level cap in audio.yaml applies and the amp un-mutes for it.
+
+substitutions:
+  # The sound to repeat. To use your own, put the file in sounds/ and change
+  # this line (see sounds/README.md). The path is relative to sat-hub.yaml.
+  ring_sound_file: sounds/timer_ring.wav
+  # Silence between repeats. This is when the hub can hear "stop" or "Hey
+  # Jarvis": there is no echo cancellation, so it hears poorly while it beeps.
+  ring_gap: 1200ms
+  # Ringing gives up by itself after this long.
+  ring_timeout: 5min
+  # Ringing volume, as media player volume (0.0 to 1.0, the number the knob and
+  # Home Assistant show). The current volume is used if it lies between these
+  # two; below the range the ring uses ring_volume_min, above it ring_volume_max.
+  # The volume is put back when the ringing stops.
+  ring_volume_min: "0.25"
+  ring_volume_max: "0.50"
+
+globals:
+  # True while the hub is ringing. leds.yaml shows the ringing colour while it
+  # is set; controls.yaml and voice.yaml use it to treat a knob turn or a wake
+  # word as "stop".
+  - id: ringing
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # The volume in use before the ringing started.
+  - id: ring_saved_volume
+    type: float
+    restore_value: false
+    initial_value: "0.5"
+
+script:
+  - id: ring_start
+    # single: a second timer finishing while the hub already rings changes
+    # nothing; one stop silences it.
+    mode: single
+    then:
+      - globals.set:
+          id: ringing
+          value: "true"
+      - globals.set:
+          id: ring_saved_volume
+          value: !lambda return id(sat_media_player).volume;
+      - media_player.volume_set:
+          id: sat_media_player
+          volume: !lambda |-
+            return clamp(id(sat_media_player).volume, ${ring_volume_min}f, ${ring_volume_max}f);
+      # The "stop" word only listens while the hub is ringing.
+      - micro_wake_word.enable_model: stop_word
+      - script.execute: status_light_apply
+      - script.execute: ring_give_up
+      - while:
+          condition:
+            lambda: return id(ringing);
+          then:
+            - media_player.speaker.play_on_device_media_file:
+                id: sat_media_player
+                media_file: ring_sound
+                announcement: true
+            # Give the player a moment to start, then wait for the sound to end.
+            - delay: 300ms
+            - wait_until:
+                condition:
+                  not:
+                    media_player.is_announcing: sat_media_player
+                timeout: 30s
+            - delay: ${ring_gap}
+
+  - id: ring_stop
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: return id(ringing);
+          then:
+            - globals.set:
+                id: ringing
+                value: "false"
+            - script.stop: ring_start
+            - script.stop: ring_give_up
+            - media_player.stop:
+                id: sat_media_player
+                announcement: true
+            - micro_wake_word.disable_model: stop_word
+            - media_player.volume_set:
+                id: sat_media_player
+                volume: !lambda return id(ring_saved_volume);
+            - script.execute: status_light_apply
+
+  # Stops the ringing if nobody else has.
+  - id: ring_give_up
+    mode: restart
+    then:
+      - delay: ${ring_timeout}
+      - logger.log: "Ringing timed out"
+      - script.execute: ring_stop
+
+esphome:
+  on_boot:
+    # The "stop" word must be off except while ringing. The wake word engine
+    # remembers which words were on, so switch it off at every start-up.
+    - priority: -100
+      then:
+        - micro_wake_word.disable_model: stop_word

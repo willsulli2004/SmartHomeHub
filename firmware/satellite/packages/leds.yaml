@@ -8,11 +8,13 @@
 #   red            muted
 #   red, 1 second  something went wrong
 #   white arc      volume, for 1.5 seconds after the knob is turned
+#   purple circle  a timer is ringing: three purple LEDs run round the ring
+#                  (shown even while muted)
 #
 # How it works: ring_state holds what the hub is doing. The small scripts at the
 # bottom set it and call status_light_apply, which is the one place that decides
-# the colour. Mute wins over everything. Timers (M4) and alarms (M5) add their
-# own states the same way.
+# the colour. Ringing (the "ringing" flag in alarm.yaml) wins over everything,
+# because it needs attention; then mute; then ring_state.
 #
 # The ring must always be driven by the firmware. Left undriven, its data line
 # floats and picks up noise from the audio signals beside it.
@@ -53,6 +55,23 @@ light:
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
     effects:
+      # Ringing: three LEDs circle the ring. The leading LED is a deep purple
+      # and the two behind it are progressively lighter and fainter.
+      # One step every 50 ms is one lap in 1.2 seconds. To reverse the
+      # direction, swap the + and - in the two "pos" lines marked below.
+      - addressable_lambda:
+          name: Ringing
+          update_interval: 50ms
+          lambda: |-
+            static int pos = 0;
+            if (initial_run)
+              pos = 0;
+            const int n = it.size();
+            it.all() = Color::BLACK;
+            it[pos] = Color(180, 0, 255);                 // head: deep purple
+            it[(pos - 1 + n) % n] = Color(150, 40, 190);  // direction: - here
+            it[(pos - 2 + n) % n] = Color(80, 30, 100);   // tail: lightest
+            pos = (pos + 1) % n;                          // direction: + here
       # Lights the first part of the ring in proportion to the volume.
       - addressable_lambda:
           name: Volume
@@ -91,53 +110,67 @@ script:
     then:
       - if:
           condition:
-            binary_sensor.is_on: mute_button
+            lambda: return id(ringing);
           then:
             - light.turn_on:
                 id: status_light
-                effect: none
-                brightness: 70%
+                # The Ringing effect sets its own colours; these values only
+                # switch the light on at full brightness.
+                brightness: 100%
                 red: 100%
-                green: 0%
-                blue: 0%
+                green: 100%
+                blue: 100%
+                effect: Ringing
           else:
             - if:
                 condition:
-                  lambda: return id(ring_state) == 1;
+                  binary_sensor.is_on: mute_button
                 then:
                   - light.turn_on:
                       id: status_light
                       effect: none
-                      brightness: 100%
-                      red: 0%
+                      brightness: 70%
+                      red: 100%
                       green: 0%
-                      blue: 100%
+                      blue: 0%
                 else:
                   - if:
                       condition:
-                        lambda: return id(ring_state) == 2;
+                        lambda: return id(ring_state) == 1;
                       then:
                         - light.turn_on:
                             id: status_light
                             effect: none
                             brightness: 100%
-                            red: 100%
-                            green: 55%
-                            blue: 0%
+                            red: 0%
+                            green: 0%
+                            blue: 100%
                       else:
                         - if:
                             condition:
-                              lambda: return id(ring_state) == 3;
+                              lambda: return id(ring_state) == 2;
                             then:
                               - light.turn_on:
                                   id: status_light
                                   effect: none
                                   brightness: 100%
-                                  red: 0%
-                                  green: 100%
+                                  red: 100%
+                                  green: 55%
                                   blue: 0%
                             else:
-                              - light.turn_off: status_light
+                              - if:
+                                  condition:
+                                    lambda: return id(ring_state) == 3;
+                                  then:
+                                    - light.turn_on:
+                                        id: status_light
+                                        effect: none
+                                        brightness: 100%
+                                        red: 0%
+                                        green: 100%
+                                        blue: 0%
+                                  else:
+                                    - light.turn_off: status_light
 
   - id: status_light_idle
     mode: restart

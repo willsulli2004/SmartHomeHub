@@ -111,8 +111,7 @@ switch:
   # Open-drain only: the ESP32 either pulls the pin to ground or lets go. It
   # never drives it high. ON = muted.
   #
-  # The wire is fitted last, when the enclosure is finished. Until then this
-  # switches a pin with nothing attached, which is harmless.
+  # Will fitted and tested the wire in M3.
   - platform: gpio
     id: amp_mute
     internal: true
@@ -125,8 +124,8 @@ switch:
         open_drain: true
 
 media_player:
-  # The only route to the speaker. Voice replies use it now; the volume knob (M3)
-  # and alarms (M5) will use it too, so all of them inherit the cap.
+  # The only route to the speaker. Voice replies, the volume knob and the timer
+  # ring (M4) use it, and alarms (M5) will too, so all of them inherit the cap.
   - platform: speaker
     id: sat_media_player
     name: Media Player
@@ -139,6 +138,12 @@ media_player:
     volume_min: 0.0
     volume_max: ${speaker_volume_max}
     volume_increment: 0.02
+    # Sounds built into the firmware. They play through this media player like
+    # everything else, so the cap above applies to them.
+    files:
+      # The ring for a finished timer; the file is chosen in alarm.yaml.
+      - id: ring_sound
+        file: ${ring_sound_file}
     # Un-mute the amp as soon as a sound is on its way, and mute it again once
     # playback has been idle for a second.
     on_announcement:
