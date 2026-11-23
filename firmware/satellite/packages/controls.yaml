@@ -21,8 +21,9 @@ seesaw_encoder:
   id: volume_knob
   i2c_id: i2c_bus
   address: 0x36
-  # Set to true if turning clockwise makes it quieter.
-  inverted: false
+  # True because on this hub the knob counts the other way round: without it,
+  # turning clockwise made it quieter (found in M3 testing).
+  inverted: true
   on_clockwise:
     - media_player.volume_up: sat_media_player
     - script.execute: status_light_volume
