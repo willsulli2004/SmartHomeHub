@@ -6,3 +6,10 @@
 # rebuilt with the same compiler it was first built with. Bump it on purpose, in
 # its own commit, and re-run the compile check.
 esphome==2026.11.0
+
+# Tests (M5). Run with:  .\.venv\Scripts\python.exe -m pytest homeassistant
+# hassil is the sentence matcher inside Home Assistant; the alarm phrase tests
+# use it so a phrase that passes here is matched the same way on the live
+# instance. The tests also use PyYAML and Jinja2, which ESPHome installs.
+hassil==3.12.1
+pytest==9.2.0

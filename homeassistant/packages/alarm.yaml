@@ -1,0 +1,635 @@
+# Hub alarms (M5): the alarm data, what happens when one fires, every way it
+# stops, the MQTT messages for the robot, and the voice commands.
+#
+# Goes on Home Assistant at /config/packages/alarm.yaml (see homeassistant/README.md).
+#
+# Layers (CLAUDE.md's four-layer design):
+#   helpers      the alarm slots and the ringing state, further down
+#   scripts      hub_alarm_start / hub_alarm_stop, the only things that start or
+#                stop an alarm, plus the scripts behind the voice commands
+#   events       hub_alarm_started / hub_alarm_stopped, fired by those two scripts
+#   triggers     automations that react: alarm time reached, knob or voice stop on
+#                the satellite, the robot's "caught", the timeout, and the MQTT
+#                publishing, which only listens for the two events
+#
+# Home Assistant owns the alarm. The satellite only rings when told to and
+# reports whether it is ringing; it never talks to the MQTT broker.
+#
+# Names this file expects from the satellite (firmware 0.6.0). If yours differ,
+# change them here; each is used in one or two places:
+#   action   esphome.sat_hub_alarm_ring
+#   action   esphome.sat_hub_stop_ring
+#   entity   binary_sensor.satellite_hub_ringing
+#
+# There are five alarm slots. Each is a date-and-time plus an on/off switch. An
+# alarm fires once and switches its slot off. To add slots, add helpers 6, 7...
+# and extend every "range(1, 6)" and the trigger list in "Hub alarm: fire".
+
+# ---------------------------------------------------------------- helpers ----
+
+input_datetime:
+  hub_alarm_1:
+    name: Alarm 1 time
+    has_date: true
+    has_time: true
+    icon: mdi:alarm
+  hub_alarm_2:
+    name: Alarm 2 time
+    has_date: true
+    has_time: true
+    icon: mdi:alarm
+  hub_alarm_3:
+    name: Alarm 3 time
+    has_date: true
+    has_time: true
+    icon: mdi:alarm
+  hub_alarm_4:
+    name: Alarm 4 time
+    has_date: true
+    has_time: true
+    icon: mdi:alarm
+  hub_alarm_5:
+    name: Alarm 5 time
+    has_date: true
+    has_time: true
+    icon: mdi:alarm
+
+input_boolean:
+  hub_alarm_1:
+    name: Alarm 1
+    icon: mdi:alarm-check
+  hub_alarm_2:
+    name: Alarm 2
+    icon: mdi:alarm-check
+  hub_alarm_3:
+    name: Alarm 3
+    icon: mdi:alarm-check
+  hub_alarm_4:
+    name: Alarm 4
+    icon: mdi:alarm-check
+  hub_alarm_5:
+    name: Alarm 5
+    icon: mdi:alarm-check
+  # On while an alarm is going off. Do not switch this by hand; use the scripts.
+  hub_alarm_ringing:
+    name: Alarm ringing
+    icon: mdi:alarm-light
+
+input_text:
+  # The id of the alarm that is ringing, or that rang last. Sent to the robot.
+  hub_alarm_active_id:
+    name: Alarm active id
+    max: 40
+    icon: mdi:identifier
+
+input_number:
+  # How long an alarm rings before it gives up. Change it from the app. There is
+  # no "initial" here on purpose: with one, the value would reset at every
+  # restart. A new install starts at the minimum, so set it once (README).
+  hub_alarm_timeout_minutes:
+    name: Alarm timeout
+    min: 1
+    max: 30
+    step: 1
+    unit_of_measurement: min
+    mode: box
+    icon: mdi:timer-off-outline
+
+# ---------------------------------------------------------------- scripts ----
+
+script:
+  # Starts an alarm going off. Does nothing if one already is.
+  hub_alarm_start:
+    alias: "Hub alarm: start"
+    mode: queued
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.hub_alarm_ringing
+            state: "on"
+        then:
+          - stop: "An alarm is already ringing"
+      - variables:
+          alarm_id: "alarm-{{ now().timestamp() | int }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.hub_alarm_active_id
+        data:
+          value: "{{ alarm_id }}"
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.hub_alarm_ringing
+      # The event goes out before the satellite is asked to ring, so the robot
+      # is told even if the satellite is offline.
+      - event: hub_alarm_started
+        event_data:
+          alarm_id: "{{ alarm_id }}"
+      - action: esphome.sat_hub_alarm_ring
+        continue_on_error: true
+
+  # Stops the alarm that is going off. "reason" is caught, user or timeout.
+  hub_alarm_stop:
+    alias: "Hub alarm: stop"
+    mode: queued
+    fields:
+      reason:
+        description: Why it stopped (caught, user or timeout).
+        example: user
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.hub_alarm_ringing
+            state: "off"
+        then:
+          - stop: "No alarm is ringing"
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.hub_alarm_ringing
+      - event: hub_alarm_stopped
+        event_data:
+          alarm_id: "{{ states('input_text.hub_alarm_active_id') }}"
+          reason: "{{ reason | default('user') }}"
+      - action: esphome.sat_hub_stop_ring
+        continue_on_error: true
+
+  # Voice: "set an alarm for 7:30 AM". Picks the first free slot.
+  # hour is -1 and the other fields are empty when they were not said.
+  hub_alarm_set:
+    alias: "Hub alarm: set by voice"
+    mode: queued
+    fields:
+      hour:
+        description: Hour as said, 0 to 23, or -1.
+      minute:
+        description: Minute, 0 to 59.
+      ampm:
+        description: am, pm or empty.
+      named_time:
+        description: A whole time as HH:MM (noon, midnight), or empty.
+    sequence:
+      - variables:
+          # The next moment the clock shows the time that was said. With am or
+          # pm there is one candidate hour; without, "7" could be 07:00 or
+          # 19:00 and the sooner one wins.
+          target: >-
+            {% set n = now() %}
+            {% if named_time %}
+              {% set m = named_time.split(':')[1] | int %}
+              {% set cands = [named_time.split(':')[0] | int] %}
+            {% else %}
+              {% set h = hour | int %}
+              {% set m = minute | int(0) %}
+              {% if ampm == 'am' %}
+                {% set cands = [h % 12] %}
+              {% elif ampm == 'pm' %}
+                {% set cands = [h % 12 + 12] %}
+              {% elif h == 0 or h > 12 %}
+                {% set cands = [h] %}
+              {% else %}
+                {% set cands = [h % 12, h % 12 + 12] %}
+              {% endif %}
+            {% endif %}
+            {% set ns = namespace(best=none) %}
+            {% for c in cands %}
+              {% set t = n.replace(hour=c, minute=m, second=0, microsecond=0) %}
+              {% if t <= n %}
+                {% set t = t + timedelta(days=1) %}
+              {% endif %}
+              {% if ns.best is none or t < ns.best %}
+                {% set ns.best = t %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.best.strftime('%Y-%m-%d %H:%M:%S') }}
+          # How the time is spoken: "7 AM", "7:30 PM", plus "tomorrow" if so.
+          spoken: >-
+            {% set t = strptime(target, '%Y-%m-%d %H:%M:%S') %}
+            {{ t.strftime('%-I %p') if t.minute == 0 else t.strftime('%-I:%M %p') }}{{ ' tomorrow' if t.date() != now().date() else '' }}
+          # An alarm already set for exactly this moment, if any.
+          duplicate: >-
+            {% set ns = namespace(found=false) %}
+            {% for i in range(1, 6) %}
+              {% if is_state('input_boolean.hub_alarm_' ~ i, 'on')
+                    and states('input_datetime.hub_alarm_' ~ i) == target %}
+                {% set ns.found = true %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.found }}
+          # The first free slot, or 0 if all are in use.
+          slot: >-
+            {% set ns = namespace(n=0) %}
+            {% for i in range(1, 6) %}
+              {% if ns.n == 0 and is_state('input_boolean.hub_alarm_' ~ i, 'off') %}
+                {% set ns.n = i %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n }}
+      - if:
+          - condition: template
+            value_template: "{{ duplicate }}"
+        then:
+          - variables:
+              result:
+                speech: "You already have an alarm for {{ spoken }}."
+          - stop: "Duplicate"
+            response_variable: result
+      - if:
+          - condition: template
+            value_template: "{{ slot | int == 0 }}"
+        then:
+          - variables:
+              result:
+                speech: "All five alarms are in use. Cancel one first."
+          - stop: "No free slot"
+            response_variable: result
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "input_datetime.hub_alarm_{{ slot }}"
+        data:
+          datetime: "{{ target }}"
+      - action: input_boolean.turn_on
+        target:
+          entity_id: "input_boolean.hub_alarm_{{ slot }}"
+      - variables:
+          result:
+            speech: "Alarm set for {{ spoken }}."
+      - stop: "Alarm set"
+        response_variable: result
+
+  # Voice: "cancel my alarm" and "cancel my 7 AM alarm". Also stops an alarm
+  # that is going off ("stop the alarm").
+  hub_alarm_cancel:
+    alias: "Hub alarm: cancel by voice"
+    mode: queued
+    fields:
+      hour:
+        description: Hour as said, 0 to 23, or -1 if no time was said.
+      minute:
+        description: Minute, 0 to 59.
+      ampm:
+        description: am, pm or empty.
+      named_time:
+        description: A whole time as HH:MM (noon, midnight), or empty.
+    sequence:
+      - if:
+          - condition: state
+            entity_id: input_boolean.hub_alarm_ringing
+            state: "on"
+        then:
+          - action: script.hub_alarm_stop
+            data:
+              reason: user
+          - variables:
+              result:
+                speech: "Alarm stopped."
+          - stop: "Stopped the ringing alarm"
+            response_variable: result
+      - variables:
+          time_given: "{{ (named_time | default('')) != '' or (hour | int(-1)) >= 0 }}"
+          # Slots that are switched on.
+          active: >-
+            {% set ns = namespace(list=[]) %}
+            {% for i in range(1, 6) %}
+              {% if is_state('input_boolean.hub_alarm_' ~ i, 'on') %}
+                {% set ns.list = ns.list + [i] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.list }}
+          # Slots to cancel: the only alarm if no time was said, otherwise every
+          # alarm at that clock time. Without am or pm, both halves of the day
+          # match.
+          matches: >-
+            {% set ns = namespace(list=[]) %}
+            {% if not time_given %}
+              {% if active | length == 1 %}
+                {% set ns.list = active %}
+              {% endif %}
+            {% else %}
+              {% if named_time %}
+                {% set m = named_time.split(':')[1] | int %}
+                {% set cands = [named_time.split(':')[0] | int] %}
+              {% else %}
+                {% set h = hour | int %}
+                {% set m = minute | int(0) %}
+                {% if ampm == 'am' %}
+                  {% set cands = [h % 12] %}
+                {% elif ampm == 'pm' %}
+                  {% set cands = [h % 12 + 12] %}
+                {% elif h == 0 or h > 12 %}
+                  {% set cands = [h] %}
+                {% else %}
+                  {% set cands = [h % 12, h % 12 + 12] %}
+                {% endif %}
+              {% endif %}
+              {% for i in active %}
+                {% set s = states('input_datetime.hub_alarm_' ~ i) %}
+                {% if (s[11:13] | int(-1)) in cands and (s[14:16] | int(-1)) == m %}
+                  {% set ns.list = ns.list + [i] %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {{ ns.list }}
+      - if:
+          - condition: template
+            value_template: "{{ active | length == 0 }}"
+        then:
+          - variables:
+              result:
+                speech: "You have no alarms set."
+          - stop: "No alarms"
+            response_variable: result
+      - if:
+          - condition: template
+            value_template: "{{ matches | length == 0 }}"
+        then:
+          - variables:
+              result:
+                speech: >-
+                  {{ "You have no alarm at that time." if time_given
+                     else "You have " ~ (active | length) ~ " alarms. Say which one to cancel, or say cancel all alarms." }}
+          - stop: "Nothing matched"
+            response_variable: result
+      - variables:
+          result:
+            speech: >-
+              {% set ns = namespace(parts=[]) %}
+              {% for i in matches %}
+                {% set t = strptime(states('input_datetime.hub_alarm_' ~ i), '%Y-%m-%d %H:%M:%S') %}
+                {% set ns.parts = ns.parts + [t.strftime('%-I %p') if t.minute == 0 else t.strftime('%-I:%M %p')] %}
+              {% endfor %}
+              Cancelled your {{ ns.parts | join(' and ') }} alarm{{ 's' if matches | length > 1 else '' }}.
+      - action: input_boolean.turn_off
+        target:
+          entity_id: >-
+            {% set ns = namespace(list=[]) %}
+            {% for i in matches %}
+              {% set ns.list = ns.list + ['input_boolean.hub_alarm_' ~ i] %}
+            {% endfor %}
+            {{ ns.list }}
+      - stop: "Cancelled"
+        response_variable: result
+
+  # Voice: "cancel all alarms".
+  hub_alarm_cancel_all:
+    alias: "Hub alarm: cancel all by voice"
+    mode: queued
+    sequence:
+      - variables:
+          count: >-
+            {% set ns = namespace(n=0) %}
+            {% for i in range(1, 6) %}
+              {% if is_state('input_boolean.hub_alarm_' ~ i, 'on') %}
+                {% set ns.n = ns.n + 1 %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.n }}
+          was_ringing: "{{ is_state('input_boolean.hub_alarm_ringing', 'on') }}"
+      - if:
+          - condition: template
+            value_template: "{{ was_ringing }}"
+        then:
+          - action: script.hub_alarm_stop
+            data:
+              reason: user
+      - action: input_boolean.turn_off
+        target:
+          entity_id:
+            - input_boolean.hub_alarm_1
+            - input_boolean.hub_alarm_2
+            - input_boolean.hub_alarm_3
+            - input_boolean.hub_alarm_4
+            - input_boolean.hub_alarm_5
+      - variables:
+          result:
+            speech: >-
+              {% if count | int == 0 %}
+                {{ "Alarm stopped." if was_ringing else "You have no alarms set." }}
+              {% elif count | int == 1 %}
+                Cancelled your alarm.
+              {% else %}
+                Cancelled all {{ count }} alarms.
+              {% endif %}
+      - stop: "Cancelled all"
+        response_variable: result
+
+  # Voice: "when is my alarm". Lists the alarms, soonest first.
+  hub_alarm_query:
+    alias: "Hub alarm: say the alarms"
+    mode: queued
+    sequence:
+      - variables:
+          result:
+            speech: >-
+              {% set ns = namespace(times=[]) %}
+              {% for i in range(1, 6) %}
+                {% if is_state('input_boolean.hub_alarm_' ~ i, 'on') %}
+                  {% set ns.times = ns.times + [states('input_datetime.hub_alarm_' ~ i)] %}
+                {% endif %}
+              {% endfor %}
+              {% set out = namespace(parts=[]) %}
+              {% for s in ns.times | sort %}
+                {% set t = strptime(s, '%Y-%m-%d %H:%M:%S') %}
+                {% set out.parts = out.parts + [(t.strftime('%-I %p') if t.minute == 0 else t.strftime('%-I:%M %p')) ~ (' tomorrow' if t.date() != now().date() else '')] %}
+              {% endfor %}
+              {% if out.parts | length == 0 %}
+                You have no alarms set.
+              {% elif out.parts | length == 1 %}
+                Your alarm is set for {{ out.parts[0] }}.
+              {% else %}
+                You have {{ out.parts | length }} alarms: {{ out.parts[:-1] | join(', ') }} and {{ out.parts[-1] }}.
+              {% endif %}
+      - stop: "Listed"
+        response_variable: result
+
+# ------------------------------------------------------------ automations ----
+
+automation:
+  # An alarm slot's time is reached. The slot switches off (alarms fire once)
+  # and the alarm starts.
+  - id: hub_alarm_fire
+    alias: "Hub alarm: fire"
+    mode: queued
+    trigger:
+      - trigger: time
+        at: input_datetime.hub_alarm_1
+        id: "1"
+      - trigger: time
+        at: input_datetime.hub_alarm_2
+        id: "2"
+      - trigger: time
+        at: input_datetime.hub_alarm_3
+        id: "3"
+      - trigger: time
+        at: input_datetime.hub_alarm_4
+        id: "4"
+      - trigger: time
+        at: input_datetime.hub_alarm_5
+        id: "5"
+    condition:
+      - condition: template
+        value_template: "{{ is_state('input_boolean.hub_alarm_' ~ trigger.id, 'on') }}"
+    action:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: "input_boolean.hub_alarm_{{ trigger.id }}"
+      - action: script.hub_alarm_start
+
+  # The satellite stopped ringing by itself while an alarm was going off: the
+  # knob was turned, or "stop" or "Hey Jarvis" was heard. When Home Assistant
+  # stops the alarm (caught, timeout, voice command) the ringing flag is already
+  # off by the time the satellite goes quiet, so this does not run twice.
+  - id: hub_alarm_stopped_on_satellite
+    alias: "Hub alarm: stopped on the satellite"
+    mode: queued
+    trigger:
+      - trigger: state
+        entity_id: binary_sensor.satellite_hub_ringing
+        from: "on"
+        to: "off"
+    condition:
+      - condition: state
+        entity_id: input_boolean.hub_alarm_ringing
+        state: "on"
+    action:
+      - action: script.hub_alarm_stop
+        data:
+          reason: user
+
+  # The robot reports it was caught. Only counts for the alarm that is ringing.
+  - id: hub_alarm_caught
+    alias: "Hub alarm: robot caught"
+    mode: queued
+    trigger:
+      - trigger: mqtt
+        topic: alarmbot/caught
+    condition:
+      - condition: state
+        entity_id: input_boolean.hub_alarm_ringing
+        state: "on"
+      - condition: template
+        value_template: >-
+          {{ trigger.payload_json is defined
+             and trigger.payload_json.alarm_id is defined
+             and trigger.payload_json.alarm_id == states('input_text.hub_alarm_active_id') }}
+    action:
+      - action: script.hub_alarm_stop
+        data:
+          reason: caught
+
+  # Nobody stopped it in time.
+  - id: hub_alarm_timeout
+    alias: "Hub alarm: timeout"
+    mode: single
+    trigger:
+      - trigger: state
+        entity_id: input_boolean.hub_alarm_ringing
+        to: "on"
+        for:
+          minutes: "{{ states('input_number.hub_alarm_timeout_minutes') | int(10) }}"
+    action:
+      - action: script.hub_alarm_stop
+        data:
+          reason: timeout
+
+  # Home Assistant restarted while an alarm was going off. Its timeout was lost
+  # with the restart, so end the alarm cleanly instead of leaving it stuck on.
+  - id: hub_alarm_clear_after_restart
+    alias: "Hub alarm: clear after restart"
+    mode: single
+    trigger:
+      - trigger: homeassistant
+        event: start
+    condition:
+      - condition: state
+        entity_id: input_boolean.hub_alarm_ringing
+        state: "on"
+    action:
+      - action: script.hub_alarm_stop
+        data:
+          reason: timeout
+
+  # MQTT for the robot (draft contract in docs/MILESTONES.md). These two only
+  # listen for the semantic events, so anything that starts or stops an alarm
+  # through the scripts is published without knowing about MQTT.
+  - id: hub_alarm_publish_start
+    alias: "Hub alarm: publish start"
+    mode: queued
+    trigger:
+      - trigger: event
+        event_type: hub_alarm_started
+    action:
+      - action: mqtt.publish
+        data:
+          topic: hub/alarm/start
+          qos: 1
+          retain: false
+          payload: >-
+            {{ {'alarm_id': trigger.event.data.alarm_id,
+                'ts': utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')} | to_json }}
+
+  - id: hub_alarm_publish_stop
+    alias: "Hub alarm: publish stop"
+    mode: queued
+    trigger:
+      - trigger: event
+        event_type: hub_alarm_stopped
+    action:
+      - action: mqtt.publish
+        data:
+          topic: hub/alarm/stop
+          qos: 1
+          retain: false
+          payload: >-
+            {{ {'alarm_id': trigger.event.data.alarm_id,
+                'reason': trigger.event.data.reason,
+                'ts': utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')} | to_json }}
+
+# ---------------------------------------------------------- voice commands ----
+# The phrases are in custom_sentences/en/alarm.yaml. Each intent runs a script
+# above and speaks the sentence the script hands back.
+
+intent_script:
+  HubSetAlarm:
+    action:
+      - action: script.hub_alarm_set
+        data:
+          hour: "{{ hour | default(-1) }}"
+          minute: "{{ minute | default(0) }}"
+          ampm: "{{ ampm | default('') }}"
+          named_time: "{{ named_time | default('') }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: "{{ action_response.speech }}"
+
+  HubCancelAlarm:
+    action:
+      - action: script.hub_alarm_cancel
+        data:
+          hour: "{{ hour | default(-1) }}"
+          minute: "{{ minute | default(0) }}"
+          ampm: "{{ ampm | default('') }}"
+          named_time: "{{ named_time | default('') }}"
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: "{{ action_response.speech }}"
+
+  HubCancelAllAlarms:
+    action:
+      - action: script.hub_alarm_cancel_all
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: "{{ action_response.speech }}"
+
+  HubQueryAlarm:
+    action:
+      - action: script.hub_alarm_query
+        response_variable: result
+      - stop: ""
+        response_variable: result
+    speech:
+      text: "{{ action_response.speech }}"
