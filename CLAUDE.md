@@ -140,17 +140,22 @@ an explicit test checklist.
   - GPIO33–37: used by the OPI PSRAM.
   - GPIO0, 3, 46: strapping pins.
   - GPIO19/20: native USB.
-  - GPIO43/44: UART0.
+  - GPIO44: UART0 RX.
+  - GPIO43 (UART0 TX) is the one exception: it carries the mic's BCLK in the rebuilt hub. Logging must
+    stay on USB (`hardware_uart: USB_SERIAL_JTAG`), never UART0, or it would fight the mic clock.
 - **Camera pins (GPIO4–18):** free, but ask before assigning them.
 
 ## Hardware and pin map
 | Component | Interface | Pins / settings |
 |---|---|---|
-| ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 42, WS 1, DIN 2 |
-| PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 39, WS 40, DOUT 38 |
+| ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 43, WS 1, DIN 2 |
+| PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 40, WS 38, DOUT 39 |
 | Seesaw rotary encoder (0x36) | I2C bus 0 | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 |
 | WS2812B strip (NUM_LEDS = 30, placeholder) | addressable LED | DATA 41 |
-| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO45 |
+| Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO45 (not wired yet in the rebuilt hub) |
+
+The pin map above is the rebuilt hub (new ESP32, November 22nd, 2026). The first build used mic BCLK 42
+and DAC BCK 39, WS 40, DOUT 38.
 
 Proven in the Arduino tests:
 - **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gives good far-field pickup. Reproduce the
