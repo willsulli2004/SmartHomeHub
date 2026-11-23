@@ -8,7 +8,8 @@
 #   red            muted
 #   red, 1 second  something went wrong
 #   white arc      volume, for 1.5 seconds after the knob is turned
-#   purple pulse   a timer is ringing (shown even while muted)
+#   purple circle  a timer is ringing: three purple LEDs run round the ring
+#                  (shown even while muted)
 #
 # How it works: ring_state holds what the hub is doing. The small scripts at the
 # bottom set it and call status_light_apply, which is the one place that decides
@@ -54,13 +55,23 @@ light:
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
     effects:
-      # A slow pulse for the ringing state.
-      - pulse:
+      # Ringing: three LEDs circle the ring. The leading LED is a deep purple
+      # and the two behind it are progressively lighter and fainter.
+      # One step every 50 ms is one lap in 1.2 seconds. To reverse the
+      # direction, swap the + and - in the two "pos" lines marked below.
+      - addressable_lambda:
           name: Ringing
-          transition_length: 400ms
-          update_interval: 400ms
-          min_brightness: 15%
-          max_brightness: 100%
+          update_interval: 50ms
+          lambda: |-
+            static int pos = 0;
+            if (initial_run)
+              pos = 0;
+            const int n = it.size();
+            it.all() = Color::BLACK;
+            it[pos] = Color(70, 0, 255);                  // head: deep purple
+            it[(pos - 1 + n) % n] = Color(110, 30, 200);  // direction: - here
+            it[(pos - 2 + n) % n] = Color(70, 35, 110);   // tail: lightest
+            pos = (pos + 1) % n;                          // direction: + here
       # Lights the first part of the ring in proportion to the volume.
       - addressable_lambda:
           name: Volume
@@ -103,9 +114,11 @@ script:
           then:
             - light.turn_on:
                 id: status_light
+                # The Ringing effect sets its own colours; these values only
+                # switch the light on at full brightness.
                 brightness: 100%
-                red: 60%
-                green: 0%
+                red: 100%
+                green: 100%
                 blue: 100%
                 effect: Ringing
           else:
