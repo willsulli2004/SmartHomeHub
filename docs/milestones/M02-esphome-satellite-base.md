@@ -5,9 +5,13 @@ Status: in review   Branch: `milestone/M02-satellite-base`   PR: https://github.
 The satellite runs ESPHome, talks to Home Assistant, and updates over Wi-Fi from now on.
 
 ## Where it stands
-Firmware 0.3.5 on the rebuilt hub: "Hey Jarvis" is heard from across the room, questions are answered
-aloud, the LED ring shows listening and speaking, and updates go over Wi-Fi. Still open before merge:
-the 100% volume check, the mute button test, and the tag and rollback test.
+Firmware 0.3.6 on the rebuilt hub: "Hey Jarvis" is heard from across the room, questions are answered
+aloud, the LED ring shows listening and speaking, mute works, and updates go over Wi-Fi.
+
+Will's results on November 23rd, 2026: the wake word, repeat and distance tests, the 100% volume
+check, the mute button, the OTA update to 0.3.6 and the rollback to `sat-hub-v3` all passed. Test 5,
+the Mic Peak reading during normal speech, was not reported as a number; the wake word working from
+across the room without dropping out is the evidence that the gain is right.
 
 ## What was built
 - `firmware/satellite/sat-hub.yaml` — new. Board (ESP32-S3 N16R8, 16MB flash, octal PSRAM), Wi-Fi with
@@ -129,7 +133,7 @@ room.** Done, with gain 4.
 
 **4. Speaker cap.** Set the Media Player volume to 100% in Home Assistant and ask a question.
 **Pass: the reply is loud and clean, with no harsh distortion.** Set it back to 50% afterwards. If it
-distorts, stop and report it. Not done on the rebuilt hub.
+distorts, stop and report it. Done: clean at 100%.
 
 **5. Mic headroom.** While speaking normally from where you would stand, watch Mic Peak.
 **Pass: it peaks between about −20 and −6 dB and never reads 0.**
@@ -154,19 +158,19 @@ bump only. Then:
     git pull
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-**Pass: Firmware reads `0.3.6` and test 2 still works.**
+**Pass: Firmware reads `0.3.6` and test 2 still works.** Done.
 
 **8. Rollback.**
 
     git checkout sat-hub-v3
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-**Pass: Firmware reads `0.3.5` again and test 2 works.** Then return to the newer build:
+**Pass: Firmware reads `0.3.5` again and test 2 works.** Done. Then return to the newer build:
 
     git checkout milestone/M02-satellite-base
     .\.venv\Scripts\esphome.exe run firmware/satellite/sat-hub.yaml --device sat-hub.local
 
-**9. Mute.** The button is on GPIO5, wired to ground only. Do this test before tagging. **Pass:
+**9. Mute.** The button is on GPIO5, wired to ground only. Done. **Pass:
 latched turns the ring red, turns the Mute entity on, and "Hey Jarvis" gets no reaction; unlatched
 restores it; latching in the middle of a question stops the conversation.** This passed on the first
 build with the button on GPIO45.
