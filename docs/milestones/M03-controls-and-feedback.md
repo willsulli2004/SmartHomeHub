@@ -11,6 +11,12 @@ the MUTE wire fitted to GPIO4: no hum when idle, and no reply has its first word
 counted backwards, so firmware 0.4.1 sets `inverted: true`. Still to do: confirm the direction on
 0.4.1, the remaining checklist items, the one-day soak, and the `sat-hub-v4` tag.
 
+Later on November 23rd, on firmware 0.4.1: the knob direction is correct and Will reports that every
+checklist item passes. After he assembled the enclosure the ring began sticking again. He swapped the
+two 5V buck converters, so the one that fed the ESP32 now feeds the ring, and the ring has since
+worked through several spoken answers without sticking. The one-day soak was not run as a full day.
+Still to do: the `sat-hub-v4` tag.
+
 ## What was built
 - `firmware/satellite/components/seesaw_encoder/__init__.py` — new. The configuration side of the
   project's first own ESPHome component: options, defaults, and the `on_clockwise` and
@@ -165,8 +171,14 @@ The plan Will confirmed on November 23rd cut these from the original M3 list:
 - **The volume arc is white on up to 24 LEDs.** At the 80% cap that is 1.15 A at full volume, inside
   the 1.2 A budget.
 - **The three unproven M2 measures are still in:** the ring's frame re-sent once a second, the 500 ms
-  wait before the ring turns off, and lowered drive strength on the DAC pins.
-- **The LED data pin (41) still sits beside the DAC's bit clock (40).** If the ring freezes during the
-  soak test, move that wire before closing the enclosure.
+  wait before the ring turns off, and lowered drive strength on the DAC pins. Given the buck finding,
+  they were probably never the fix.
+- **The LED freeze was traced to the ring's power supply, not the firmware.** It came back when the
+  enclosure was assembled and stopped when Will swapped the two buck converters. The converters'
+  voltages were not measured, so the exact cause is inferred: most likely the ring's supply sat high
+  enough that the ESP32's 3.3V data signal was only just readable. The margin is still thin. A diode
+  in the ring's power lead or a level shifter on the data wire would make it dependable.
+- **The ESP32 now runs from the converter that upset the ring.** It regulates its own 3.3V, so this
+  should be fine, but unexplained restarts or Wi-Fi drops would point there first.
 - **No unit tests for the component.** Its logic is small and tied to the I2C bus; it is verified on
   the hardware.

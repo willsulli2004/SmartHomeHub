@@ -177,9 +177,16 @@ Learned in M2 on the assembled hub (details in `docs/milestones/M02-esphome-sate
 Board: ESP32-S3-DevKitC-1 N16R8 clone, 16MB flash, 8MB octal PSRAM. Hostname `sat-hub`.
 
 Power: HUSB238 at 12V feeds the MAX9744 VDD and two MPM3610 5V bucks.
-- Buck A: devkit 5V (logic).
-- Buck B: LED ring.
+- Buck A: LED ring.
+- Buck B: devkit 5V (logic).
 - Star grounding.
+
+Will swapped the two bucks on November 23rd, 2026 (Buck A used to feed the devkit and Buck B the LEDs).
+With Buck B on the LEDs, they froze on their last colour after spoken replies, on both hub builds;
+after the swap the freeze stopped. The bucks' output voltages were not measured. The likely cause is the
+LED supply voltage: WS2812 LEDs need the data signal to reach about 70% of their supply, and the
+ESP32's 3.3V signal is borderline at 5V. Do not swap the bucks back. If the freeze returns, measure the
+LED supply first; a diode in the LED power lead or a level shifter on the data wire gives real margin.
 
 ## Code conventions
 - **ESPHome:**
