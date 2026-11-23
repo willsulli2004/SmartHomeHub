@@ -8,10 +8,10 @@ works the same with the robot offline.
 
 ## What was built
 **Home Assistant side** (new folder `homeassistant/`):
-- `homeassistant/packages/alarm.yaml` — new. Five alarm slots as helpers, the scripts that start and
+- `homeassistant/packages/hub_alarms.yaml` — new. Five alarm slots as helpers, the scripts that start and
   stop an alarm, automations for every trigger and stop path, the MQTT publishing, and the handlers
   for the voice commands.
-- `homeassistant/custom_sentences/en/alarm.yaml` — new. The spoken phrases for setting, cancelling
+- `homeassistant/custom_sentences/en/hub_alarms.yaml` — new. The spoken phrases for setting, cancelling
   and asking about alarms.
 - `homeassistant/tests/test_alarm_sentences.py` — new. 53 checks that phrases, written the way
   speech-to-text writes them, are matched with the right hour, minute and am/pm.

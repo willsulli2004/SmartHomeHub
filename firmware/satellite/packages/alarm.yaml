@@ -8,7 +8,7 @@
 #
 # What starts and stops the ringing is decided elsewhere:
 #   start   voice.yaml       a Home Assistant timer finishes
-#           Home Assistant   an alarm's time is reached (homeassistant/packages/alarm.yaml)
+#           Home Assistant   an alarm's time is reached (homeassistant/packages/hub_alarms.yaml)
 #   stop    voice.yaml       "Hey Jarvis" or "stop" is heard
 #           controls.yaml    the knob is turned either way
 #           Home Assistant   the robot was caught, the alarm timed out, or a voice command

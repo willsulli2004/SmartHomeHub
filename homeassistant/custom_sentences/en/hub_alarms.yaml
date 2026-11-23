@@ -1,7 +1,7 @@
 # Spoken phrases for the hub's alarms (M5).
 #
-# Goes on Home Assistant at /config/custom_sentences/en/alarm.yaml.
-# What each intent does is in packages/alarm.yaml (intent_script).
+# Goes on Home Assistant at /config/custom_sentences/en/hub_alarms.yaml.
+# What each intent does is in packages/hub_alarms.yaml (intent_script).
 #
 # Home Assistant matches these itself, on the mini PC, before anything is sent to
 # Claude, so alarms work with no internet. Matching ignores capitals and the

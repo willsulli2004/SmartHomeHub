@@ -1,7 +1,7 @@
 # Hub alarms (M5): the alarm data, what happens when one fires, every way it
 # stops, the MQTT messages for the robot, and the voice commands.
 #
-# Goes on Home Assistant at /config/packages/alarm.yaml (see homeassistant/README.md).
+# Goes on Home Assistant at /config/packages/hub_alarms.yaml (see homeassistant/README.md).
 #
 # Layers (CLAUDE.md's four-layer design):
 #   helpers      the alarm slots and the ringing state, further down
@@ -584,7 +584,7 @@ automation:
                 'ts': utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')} | to_json }}
 
 # ---------------------------------------------------------- voice commands ----
-# The phrases are in custom_sentences/en/alarm.yaml. Each intent runs a script
+# The phrases are in custom_sentences/en/hub_alarms.yaml. Each intent runs a script
 # above and speaks the sentence the script hands back.
 
 intent_script:

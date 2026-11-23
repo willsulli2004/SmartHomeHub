@@ -1,4 +1,4 @@
-"""Checks the alarm logic written as templates in packages/alarm.yaml.
+"""Checks the alarm logic written as templates in packages/hub_alarms.yaml.
 
 The templates run inside Home Assistant, which is not available here. These
 tests render them with plain Jinja2 and small stand-ins for the Home Assistant
@@ -22,7 +22,7 @@ import pytest
 import yaml
 from jinja2.sandbox import SandboxedEnvironment
 
-PACKAGE = Path(__file__).parent.parent / "packages" / "alarm.yaml"
+PACKAGE = Path(__file__).parent.parent / "packages" / "hub_alarms.yaml"
 
 # The fake "now" for every test: a Monday afternoon.
 NOW = datetime(2026, 11, 23, 15, 0, 0)
@@ -226,6 +226,6 @@ def test_package_is_valid_yaml_with_the_expected_parts() -> None:
     }
     # Every intent in the sentences file has a handler, and the reverse.
     sentences = yaml.safe_load(
-        (PACKAGE.parent.parent / "custom_sentences" / "en" / "alarm.yaml").read_text("utf-8")
+        (PACKAGE.parent.parent / "custom_sentences" / "en" / "hub_alarms.yaml").read_text("utf-8")
     )
     assert set(package["intent_script"]) == set(sentences["intents"])

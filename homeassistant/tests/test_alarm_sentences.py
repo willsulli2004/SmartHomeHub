@@ -1,4 +1,4 @@
-"""Checks that the alarm phrases in custom_sentences/en/alarm.yaml are understood.
+"""Checks that the alarm phrases in custom_sentences/en/hub_alarms.yaml are understood.
 
 Uses hassil, the sentence matcher inside Home Assistant, so a phrase that passes
 here is matched the same way on the live instance. Run from the repo folder:
@@ -7,7 +7,7 @@ here is matched the same way on the live instance. Run from the repo folder:
 
 These tests cover matching only: which intent a phrase triggers and the hour,
 minute and am/pm it carries. Turning those into a clock time is done by Home
-Assistant templates in packages/alarm.yaml and is tested on the live instance.
+Assistant templates in packages/hub_alarms.yaml and is tested on the live instance.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import pytest
 import yaml
 from hassil import Intents, recognize
 
-SENTENCES = Path(__file__).parent.parent / "custom_sentences" / "en" / "alarm.yaml"
+SENTENCES = Path(__file__).parent.parent / "custom_sentences" / "en" / "hub_alarms.yaml"
 
 
 @pytest.fixture(scope="module")

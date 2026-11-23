@@ -631,17 +631,20 @@ everything, and copy it.
 
 | Copy from the repo | Create on Home Assistant |
 |---|---|
-| `homeassistant/packages/alarm.yaml` | `packages/alarm.yaml` |
-| `homeassistant/custom_sentences/en/alarm.yaml` | `custom_sentences/en/alarm.yaml` |
+| `homeassistant/packages/hub_alarms.yaml` | `packages/hub_alarms.yaml` |
+| `homeassistant/custom_sentences/en/hub_alarms.yaml` | `custom_sentences/en/hub_alarms.yaml` |
 
 In the File editor's file browser:
 
 1. Use the **new folder** icon to create `packages`. Click into it, use the **new file** icon to
-   create `alarm.yaml`, paste, and save.
+   create `hub_alarms.yaml`, paste, and save.
 2. Go back to the top folder. Create the folder `custom_sentences`, then `en` inside it, then the file
-   `alarm.yaml` inside that. Paste and save.
+   `hub_alarms.yaml` inside that. Paste and save.
 
-Both files are named `alarm.yaml`; the folder is what tells them apart.
+Both files are named `hub_alarms.yaml`; the folder is what tells them apart. Take care to copy from
+the repo's `homeassistant/` folder. The firmware has its own `firmware/satellite/packages/alarm.yaml`,
+which is a different kind of file: pasting that one makes the configuration check fail with an error
+about `!lambda`.
 
 ### 14.4 Check and restart
 
@@ -661,7 +664,7 @@ The package refers to three things on the satellite by name. Check each exists:
 
 If the two actions are missing, reload the ESPHome integration (**Settings → Devices & services →
 ESPHome →** three dots on Satellite Hub **→ Reload**) and look again. If a name is different on your
-install, change it in `packages/alarm.yaml` on Home Assistant (each appears once or twice, and the
+install, change it in `packages/hub_alarms.yaml` on Home Assistant (each appears once or twice, and the
 top of the file lists them), restart, and tell Claude so the repo copy can be corrected.
 
 ### 14.6 Set the alarm timeout
@@ -736,6 +739,6 @@ The alarm stops with reason `caught`. A wrong id is ignored.
 
 ### 14.10 Going back
 
-Delete `packages/alarm.yaml` and `custom_sentences/en/alarm.yaml` in the File editor and restart Home
+Delete `packages/hub_alarms.yaml` and `custom_sentences/en/hub_alarms.yaml` in the File editor and restart Home
 Assistant. The alarm helpers, scripts and voice commands disappear. The `packages:` line in
 `configuration.yaml` can stay; an empty `packages` folder is harmless.
