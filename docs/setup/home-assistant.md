@@ -4,7 +4,8 @@ How Home Assistant is set up for the Smart Home Hub, and the steps that take it 
 everything the satellite needs: a fixed address, backups, an MQTT broker, and a local voice pipeline.
 
 Sections 2 to 10 are steps to do once, in order. Section 11 is the test checklist. Section 12 is for
-rebuilding after a failure.
+rebuilding after a failure. Section 13 (added in M4) sets up device commands, timers and Claude for
+general questions.
 
 ## Where things happen
 
@@ -27,6 +28,7 @@ Rules that apply to every step:
 - **Passwords and keys go in your password manager.** Never in this repo, a PR, a commit or a chat.
 - **The VM's IP address is not written in this repo.** Code and config read it from secrets files.
 - **Nothing here signs in to a cloud service.** Skip any prompt for Home Assistant Cloud (Nabu Casa).
+  The one approved exception is section 13: the text of a question goes to the Claude API.
 
 A note on names: recent Home Assistant versions call add-ons **Apps**. Where this guide says
 **Settings → Add-ons**, your version may show **Settings → Apps**. It is the same page.
@@ -297,7 +299,8 @@ Check: **Wyoming Protocol** in the integrations list now shows two entries, Whis
 3. Click **Create**.
 4. Open the new assistant's menu (the three dots) and choose **Set as preferred**. A star marks it.
 
-The conversation agent stays as plain Home Assistant for now. M4 adds Claude for general questions.
+The conversation agent stays as plain Home Assistant at this point. Section 13 changes it to Claude
+for general questions.
 
 ## 10. Changing the voice
 
@@ -441,3 +444,129 @@ the original VM 102 may have been created differently, and this path has not bee
 
 6. The new VM has a new MAC address. Redo section 4 so it gets the same reserved address as before,
    then run the test checklist in section 11.
+
+## 13. Core voice: devices, timers and questions (M4)
+
+After this section, one sentence to the satellite goes one of two ways:
+
+| What you say | Who handles it | Needs the internet |
+|---|---|---|
+| A device command, a timer command, "what time is it" | Home Assistant, on the mini PC | no |
+| Anything Home Assistant does not recognise, such as a general question | Claude, through the Anthropic integration | yes |
+
+Speech-to-text and text-to-speech stay on the mini PC in both cases. Only the **text** of a question
+is sent out, never audio.
+
+Menu and option names below are from Home Assistant's documentation, not from sight of this install.
+If a label differs slightly, pick the closest one and note it in the PR.
+
+### 13.1 Make the devices usable by voice
+
+**Where:** HA web UI.
+
+1. **Settings → Voice assistants → Expose** (a tab at the top). Make sure each Nanoleaf light you
+   want to control is listed and exposed to **Assist**. Remove anything you do not want voice to
+   reach.
+2. Click each exposed light and check its name is something you would say out loud, such as
+   `Desk lights`. Add an **alias** for any other name you might use.
+3. **Settings → Areas, labels & zones:** make sure the lights are in an area, such as `Bedroom`.
+4. **Settings → Devices & services → ESPHome → Satellite Hub:** set the satellite's **Area** to the
+   room it sits in. "Turn on the lights" with no room name then means the lights in that room.
+
+Check, typed in the Assist dialog with **Jewel** selected: `turn on the desk lights` (use your
+light's name). The light turns on and the answer is immediate.
+
+### 13.2 Timers
+
+There is nothing to set up. Home Assistant handles timer sentences itself and tells the satellite
+when one finishes; the satellite rings (firmware 0.5.0 and later). Timers only work when spoken to the
+satellite; the Assist dialog in the browser cannot hold them.
+
+| Say | What happens |
+|---|---|
+| "Set a timer for 5 minutes" | starts a timer |
+| "Set a pizza timer for 10 minutes" | starts a named timer |
+| "How long is left on my timer?" | speaks the time left |
+| "Cancel my timer" / "Cancel the pizza timer" | cancels it |
+
+A finished timer rings until you say "stop" or "Hey Jarvis", turn the knob, or five minutes pass.
+
+### 13.3 Get a Claude API key
+
+**Where:** a browser, at `console.anthropic.com`.
+
+1. Create an account or sign in. This is separate from a Claude.ai subscription.
+2. Add a small amount of credit under billing. Spoken questions are short, so a few dollars goes a
+   long way. Set a low monthly spend limit while you are there.
+3. Create an API key named `home-assistant`. Copy it straight into your password manager. It is shown
+   only once. Never put it in this repo, a PR, a commit or a chat.
+
+### 13.4 Add the Anthropic integration
+
+**Where:** HA web UI → **Settings → Devices & services → Add integration**.
+
+1. Search for **Anthropic**, select it, and paste the API key when asked.
+2. Open the new **Anthropic** entry. It has a conversation agent, usually named **Claude
+   conversation**. Open its settings (**Configure**, or the gear on the agent).
+3. Set the options:
+   - **Instructions:** replace the text with the prompt in 13.5.
+   - **Control Home Assistant:** leave every box **unticked**. See "What Claude can and cannot see"
+     below.
+   - **Recommended model settings:** untick it, so the next options appear.
+   - **Model:** the newest **Haiku** model in the list. Haiku is the small, fast tier, which suits
+     short spoken answers.
+   - **Maximum tokens:** `300`. This limits how long an answer can be.
+   - **Web search:** leave it **off**. It can be turned on here later; see the note below.
+4. Save.
+
+**What Claude can and cannot see.** With "Control Home Assistant" unticked, Claude gets the text of
+what you said, the instructions, the earlier turns of the same conversation, and whatever Home
+Assistant adds to every prompt by itself (such as the current date and time). It does not get your
+device list or their states, and it cannot switch anything. That matches this project's privacy rule.
+The cost: if a device command is phrased so oddly that Home Assistant does not recognise it, it goes
+to Claude, which answers that it cannot control devices. Say it again in a plainer form.
+
+**Web search, for later.** The integration can let Claude search the web, which helps with news,
+scores and anything recent. It is off for M4 because it adds cost and delay and passes your question
+on to a search. To try it, tick **Web search** in the same settings page; untick it to go back. No
+firmware change is involved either way.
+
+### 13.5 The prompt
+
+Paste this as the **Instructions**:
+
+```text
+You are Jarvis, the voice assistant of a smart home hub. Your reply is read aloud by a speech
+synthesiser, so write for the ear.
+
+- Answer in one or two short sentences. Give the answer first. Go longer only if asked for detail.
+- Use plain spoken English. No lists, headings, markdown, emoji, symbols or URLs.
+- Write numbers, units and abbreviations the way they are spoken.
+- You cannot control devices, set timers or alarms, or see the state of the home. If asked to, say
+  briefly that you could not do that and suggest saying it again more simply.
+- If you do not know, or the answer depends on recent events you cannot check, say so in one sentence.
+- Do not ask follow-up questions unless you cannot answer without one.
+```
+
+### 13.6 Point the assistant at Claude
+
+**Where:** HA web UI → **Settings → Voice assistants →** click **Jewel**.
+
+1. **Conversation agent:** choose **Claude conversation**.
+2. Turn **on** the switch **Prefer handling commands locally**. This is what keeps device and timer
+   commands on the mini PC and working with no internet. It appears under the conversation agent once
+   an agent other than Home Assistant is chosen.
+3. Click **Update**.
+
+Check, typed in the Assist dialog with **Jewel** selected:
+- `turn on the desk lights` still answers at once (handled locally).
+- `why is the sky blue` gets a one or two sentence answer after a second or two (handled by Claude).
+
+To see which side handled a sentence: **Settings → Voice assistants →** the three dots on Jewel →
+**Debug**. The last run shows the conversation step and whether it was processed locally.
+
+### 13.7 Going back
+
+To undo this section: open **Jewel**, set **Conversation agent** back to **Home Assistant**, and click
+**Update**. To remove Claude completely, delete the **Anthropic** integration and revoke the key at
+`console.anthropic.com`.
