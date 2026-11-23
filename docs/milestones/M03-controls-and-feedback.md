@@ -5,6 +5,12 @@ Status: in review   Branch: `milestone/M03-controls-feedback`   PR: https://gith
 The satellite feels like a finished device: the knob changes the volume, the ring shows what the hub
 is doing, and the amp is silent when nothing is playing.
 
+## Where it stands
+Will's results on November 23rd, 2026, on firmware 0.4.0: the knob works, and the amp mute works with
+the MUTE wire fitted to GPIO4: no hum when idle, and no reply has its first word cut off. The knob
+counted backwards, so firmware 0.4.1 sets `inverted: true`. Still to do: confirm the direction on
+0.4.1, the remaining checklist items, the one-day soak, and the `sat-hub-v4` tag.
+
 ## What was built
 - `firmware/satellite/components/seesaw_encoder/__init__.py` — new. The configuration side of the
   project's first own ESPHome component: options, defaults, and the `on_clockwise` and
@@ -62,7 +68,7 @@ visible in M4, when questions go to Claude.
 GPIO4 is an open-drain output: the ESP32 pulls it to ground to mute the amp, or lets go. It never
 drives it high. The amp is muted at start-up, released when the media player starts a sound (about
 100 ms before audio comes out, by the M2 logs), and muted again one second after playback goes idle.
-Until Will fits the wire, the pin switches with nothing attached.
+Will fitted the wire during M3 testing and confirmed it works.
 
 ## How it connects to the rest of the project
 - **Speaker cap (hard rule 3):** the knob calls the media player's volume up and down. It never
@@ -96,14 +102,14 @@ Roll back, if needed:
 ## How to test
 Claude cannot hear the speaker, see the ring or turn the knob. Pass criteria are in bold.
 
-**1. Boot.** **Pass: Firmware reads `0.4.0 (ESPHome 2026.11.0)`, and the wake word still gets a
+**1. Boot.** **Pass: Firmware reads `0.4.1 (ESPHome 2026.11.0)`, and the wake word still gets a
 spoken answer.** If the knob does nothing in test 2, read the log
 (`esphome logs ... --device sat-hub.local`): `No answer from the encoder` means a wiring or power
 problem on the encoder board.
 
 **2. Knob.** Turn the knob one click clockwise, then several. **Pass: the Media Player volume in Home
-Assistant rises 2% per click, and falls 2% per click the other way.** If it runs backwards, tell
-Claude; it is one setting.
+Assistant rises 2% per click, and falls 2% per click the other way.** On 0.4.0 the knob worked but
+ran backwards; 0.4.1 inverts it. Confirm clockwise is louder on 0.4.1.
 
 **3. Volume display.** **Pass: while turning, the ring shows a white arc that grows and shrinks with
 the volume, and about 1.5 seconds after the last click it returns to off.**
@@ -131,10 +137,9 @@ goes deaf.**
     git tag -a sat-hub-v4 -m "Satellite firmware v4: volume knob, LED states, amp mute"
     git push origin sat-hub-v4
 
-**11. Amp mute, after the wire is fitted** (MUTE on the amp to GPIO4, ideally through a 1 kΩ
-resistor). Do this before the enclosure's last panel goes on. **Pass: no hum when idle, the hum
-returns only while it speaks, and the first word of a reply is not cut off.** If the first word is
-clipped, tell Claude; the release timing can be moved earlier.
+**11. Amp mute** (MUTE on the amp to GPIO4). **Pass: no hum when idle, the hum returns only while
+it speaks, and the first word of a reply is not cut off.** Done: Will reports no hum and nothing
+cut off.
 
 Checks Claude ran, using a temporary copy with the example secrets (the real `secrets.yaml` was never
 opened):
@@ -142,7 +147,11 @@ opened):
 - `esphome compile`: passes, including the new C++ component.
 
 ## Deviations from the plan
-None from the plan Will confirmed on November 23rd. That plan cut these from the original M3 list:
+- **The amp MUTE wire was fitted during M3 testing,** not left until the enclosure was finished as
+  first planned, so the mute could be tested straight away.
+- **The knob needed `inverted: true`.**
+
+The plan Will confirmed on November 23rd cut these from the original M3 list:
 - Feedback sounds for volume and mute: backlog.
 - Encoder press: waits for a new enclosure.
 - The encoder's own status light: backlog.
@@ -151,12 +160,8 @@ None from the plan Will confirmed on November 23rd. That plan cut these from the
 - Removing the three unproven M2 measures: after the demo.
 
 ## Known limitations / follow-ups
-- **Nothing here has run on the hardware.** The encoder protocol is written from the seesaw register
-  map and Will's working Arduino code, but this C++ has never talked to the real chip.
-- **The amp mute is untested until the wire is fitted,** and it is the last thing done before the
-  enclosure closes.
-- **The hub hums for a few seconds at power-up,** before the firmware pulls MUTE low, and while it
-  speaks.
+- **The idle hum from M2 is solved by the amp mute.** It is still there underneath while the hub
+  speaks, and for a few seconds at power-up.
 - **The volume arc is white on up to 24 LEDs.** At the 80% cap that is 1.15 A at full volume, inside
   the 1.2 A budget.
 - **The three unproven M2 measures are still in:** the ring's frame re-sent once a second, the 500 ms

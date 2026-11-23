@@ -86,8 +86,8 @@ extras and M6's analytics before cutting alarms or the robot link.
   delivers rotation only. The press comes back when the enclosure is changed.
 - **HA entities:** volume, mute state and LED brightness exposed in Home Assistant.
 - **Sounds:** short feedback tones for volume changes and mute on/off.
-- **Amp MUTE on GPIO4:** cleared by Will's measurement. The firmware is in M3; the wire is fitted when
-  the enclosure is finished.
+- **Amp MUTE on GPIO4:** cleared by Will's measurement, built in M3, wired and working. It removes the
+  idle hum.
 - **Done when:** every state shows correctly, the knob and HA volume stay in sync, and the cap holds at
   100%.
 
