@@ -1,6 +1,6 @@
 # Controls: the mute button.
 #
-# The button is a latching switch from GPIO45 to GND. Latched (closed) = muted.
+# The button is a latching switch from GPIO5 to GND. Latched (closed) = muted.
 # While muted: wake word detection is stopped, any conversation in progress is
 # stopped, and the microphone is muted, so no audio leaves the device.
 
@@ -10,15 +10,13 @@ binary_sensor:
     name: Mute
     icon: mdi:microphone-off
     pin:
-      number: GPIO45
-      # Hard rule 1: GPIO45 is a strapping pin and must be low at boot.
-      # Input with the INTERNAL pull-up only. Never an output, never an external
-      # pull-up. The internal pull-up is enabled after boot, which is safe.
+      # GPIO5 is an ordinary pin. The first build used GPIO45, a strapping pin
+      # that must be low at boot (hard rule 1); nothing is connected to it now.
+      number: GPIO5
       mode:
         input: true
         pullup: true
       inverted: true
-      ignore_strapping_warning: true
     filters:
       - delayed_on_off: 50ms
     on_press:
