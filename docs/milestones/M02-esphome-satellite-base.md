@@ -48,10 +48,10 @@ by reading the code and the config, not by measurement.
 ### Pins used
 | Function | Pins |
 |---|---|
-| Mic I2S | BCLK 43, WS 1, DIN 2 |
+| Mic I2S | BCLK 42, WS 1, DIN 2 |
 | DAC I2S | BCK 40, WS 38, DOUT 39 |
 | Mute button | GPIO45, input, internal pull-up only, `ignore_strapping_warning: true` (not wired yet in the rebuilt hub) |
-| LED strip (status colours) | GPIO41, 71 LEDs, every channel capped at 70%, one colour at a time |
+| LED ring (status colours) | GPIO41, 24 LEDs, every channel capped at 80% (worst case 1.15 A) |
 
 ## How it connects to the rest of the project
 This is layer 1 of the architecture, the device.
@@ -170,11 +170,11 @@ Checks Claude ran on this branch, using a temporary copy with the example secret
   (one-time setup, step 2). Both are saved for Will's Windows account.
 
 ## Deviations from the plan
-- **The hub was rebuilt with a new ESP32 on November 22nd**, partway through this milestone, and some
-  pins moved: the mic's BCLK went from GPIO42 to 43, and the DAC went from BCK 39 / WS 40 / DOUT 38 to
-  BCK 40 / WS 38 / DOUT 39. Firmware 0.3.0 is the first build for the new wiring. GPIO43 is UART0 TX,
-  which CLAUDE.md used to list as never to be used; it now allows it for the mic clock, provided
-  logging stays on USB. The mute button is not wired yet, so the firmware reads it as "not muted".
+- **The hub was rebuilt with a new ESP32 on November 22nd**, partway through this milestone. The DAC
+  pins moved from BCK 39 / WS 40 / DOUT 38 to BCK 40 / WS 38 / DOUT 39, and the 71-LED strip was
+  replaced by a DFRobot 24-LED WS2812 ring on the same pin. Firmware 0.3.1 is the first build for the
+  new hardware (0.3.0 had the mic clock on the wrong pin, from a typo). The mute button is not wired
+  yet, so the firmware reads it as "not muted".
 - **The speaker cap is `volume_max: 0.87`, not 0.5.** ESPHome's volume scale is in decibels, so 0.87 is
   what gives −6.4 dBFS. See "Speaker level cap" above.
 - **Status colours on the LED strip were added**, pulling a small part of M3 forward. The first build

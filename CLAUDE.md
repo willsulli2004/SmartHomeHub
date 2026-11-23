@@ -133,29 +133,27 @@ an explicit test checklist.
   Never write I2C code for the amp.
 - **MAX9744 MUTE:** not connected. It is planned on GPIO4 (free since the camera was dropped), open-drain
   only, after Will measures that MUTE idles at 3.6V or less. Do not drive it until Will confirms.
-- **LED strip current:** WS2812B on its own buck with a ~1.2A budget. 30 LEDs at full white would draw
-  ~1.8A, so cap brightness in software.
+- **LED ring current:** the 24-LED WS2812 ring is on its own buck with a ~1.2A budget. 24 LEDs at full
+  white would draw ~1.44A, so cap brightness in software.
 - **GPIO48:** the devkit's onboard RGB LED.
 - **Pins never to use:**
   - GPIO33–37: used by the OPI PSRAM.
   - GPIO0, 3, 46: strapping pins.
   - GPIO19/20: native USB.
-  - GPIO44: UART0 RX.
-  - GPIO43 (UART0 TX) is the one exception: it carries the mic's BCLK in the rebuilt hub. Logging must
-    stay on USB (`hardware_uart: USB_SERIAL_JTAG`), never UART0, or it would fight the mic clock.
+  - GPIO43/44: UART0.
 - **Camera pins (GPIO4–18):** free, but ask before assigning them.
 
 ## Hardware and pin map
 | Component | Interface | Pins / settings |
 |---|---|---|
-| ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 43, WS 1, DIN 2 |
+| ICS-43434 mic | I2S RX, 16 kHz, 24-bit data in a 32-bit slot, left channel (SEL→GND) | BCLK 42, WS 1, DIN 2 |
 | PCM5102 DAC → MAX9744 (left in; 4Ω 20W speaker on left out) | I2S TX, 16-bit stereo | BCK 40, WS 38, DOUT 39 |
 | Seesaw rotary encoder (0x36) | I2C bus 0 | SDA 21, SCL 47; seesaw switch pin 24, seesaw pixel pin 6 |
-| WS2812B strip (NUM_LEDS = 30, placeholder) | addressable LED | DATA 41 |
+| DFRobot WS2812 RGB LED ring, 24 LEDs | addressable LED | DATA 41 |
 | Mute button (latching) | GPIO to GND, internal pull-up, debounced; latched = muted | GPIO45 (not wired yet in the rebuilt hub) |
 
-The pin map above is the rebuilt hub (new ESP32, November 22nd, 2026). The first build used mic BCLK 42
-and DAC BCK 39, WS 40, DOUT 38.
+The pin map above is the rebuilt hub (new ESP32, November 22nd, 2026). The first build used DAC BCK 39,
+WS 40, DOUT 38 and a 71-LED WS2812B strip.
 
 Proven in the Arduino tests:
 - **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gives good far-field pickup. Reproduce the
@@ -166,7 +164,7 @@ Board: ESP32-S3-DevKitC-1 N16R8 clone, 16MB flash, 8MB octal PSRAM. Hostname `sa
 
 Power: HUSB238 at 12V feeds the MAX9744 VDD and two MPM3610 5V bucks.
 - Buck A: devkit 5V (logic).
-- Buck B: LED strip.
+- Buck B: LED ring.
 - Star grounding.
 
 ## Code conventions
