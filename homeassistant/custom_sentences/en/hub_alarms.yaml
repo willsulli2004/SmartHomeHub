@@ -4,14 +4,14 @@
 # What each intent does is in packages/hub_alarms.yaml (intent_script).
 #
 # Home Assistant matches these itself, on the mini PC, before anything is sent to
-# Claude, so alarms work with no internet. Matching ignores capitals and the
-# punctuation at the end of a sentence. "a.m." and "p.m." are listed with their
-# dots because speech-to-text often writes them that way.
+# Claude, so alarms work with no internet.
 #
-# A time can be said as:
-#   7 AM   7:30 PM   7 30 pm   19:15   seven thirty am   7 o'clock   noon
-# AM or PM may be left out; the alarm is then set for the next time the clock
-# shows that time.
+# The time is a "wildcard": whatever words stand where {when} is are handed to
+# the script hub_alarm_parse_time, which works out the time. That is deliberate.
+# Speech-to-text writes times in many ways ("3:10 PM", "3:10pm", "3.10 p.m.",
+# "310 PM", "three ten in the afternoon") and a list of exact forms missed some
+# of them, which sent the sentence to Claude instead. If the words are not a
+# time, the hub says it did not catch the time.
 #
 # tests/test_alarm_sentences.py checks these phrases. Run pytest after any change.
 
@@ -21,26 +21,27 @@ intents:
   HubSetAlarm:
     data:
       - sentences:
-          - "(set|create|add|make|start) [me] (an|a|the|my|another) alarm (for|at) <alarm_time>"
-          - "(set|create|add|make|start) [me] (an|a|another) <alarm_time> alarm"
-          - "wake me [up] at <alarm_time>"
+          - "<polite>(set|create|add|make|start|schedule) [me] [an|a|the|my|another] alarm (for|at|to) {when}"
+          - "<polite>(set|create|add|make|start|schedule) [me] (an|a|another) {when} alarm"
+          - "<polite>wake me [up] at {when}"
 
   HubCancelAlarm:
     data:
       # No time given: cancels the alarm if there is only one, and stops an
       # alarm that is ringing.
       - sentences:
-          - "(cancel|delete|remove|stop|turn off|clear) [my|the|that] alarm"
+          - "<polite><cancel> [my|the|that] alarm"
+          - "<polite>stop [my|the|that] alarm"
       # A time given: cancels the alarm set for that time.
       - sentences:
-          - "(cancel|delete|remove|turn off|clear) [my|the] alarm (for|at) <alarm_time>"
-          - "(cancel|delete|remove|turn off|clear) [my|the] <alarm_time> alarm"
+          - "<polite><cancel> [my|the] alarm (for|at) {when}"
+          - "<polite><cancel> [my|the] {when} alarm"
 
   HubCancelAllAlarms:
     data:
       - sentences:
-          - "(cancel|delete|remove|turn off|clear) (all|every) [of] [my|the] (alarms|alarm)"
-          - "(cancel|delete|remove|turn off|clear) [my|the] alarms"
+          - "<polite><cancel> (all|every) [of] [my|the] (alarms|alarm)"
+          - "<polite><cancel> [my|the] alarms"
 
   HubQueryAlarm:
     data:
@@ -51,128 +52,10 @@ intents:
           - "(list|tell me|read [me]) [my|the] alarms"
 
 lists:
-  # Hours as digits, 0 to 23.
-  hour:
-    range:
-      from: 0
-      to: 23
-  # Hours as words, for when speech-to-text spells the number out.
-  hour_word:
-    values:
-      - in: "one"
-        out: 1
-      - in: "two"
-        out: 2
-      - in: "three"
-        out: 3
-      - in: "four"
-        out: 4
-      - in: "five"
-        out: 5
-      - in: "six"
-        out: 6
-      - in: "seven"
-        out: 7
-      - in: "eight"
-        out: 8
-      - in: "nine"
-        out: 9
-      - in: "ten"
-        out: 10
-      - in: "eleven"
-        out: 11
-      - in: "twelve"
-        out: 12
-  # Minutes as digits, 0 to 59. The two-digit list covers "05".
-  minute:
-    range:
-      from: 0
-      to: 59
-  minute_padded:
-    values:
-      - in: "00"
-        out: 0
-      - in: "01"
-        out: 1
-      - in: "02"
-        out: 2
-      - in: "03"
-        out: 3
-      - in: "04"
-        out: 4
-      - in: "05"
-        out: 5
-      - in: "06"
-        out: 6
-      - in: "07"
-        out: 7
-      - in: "08"
-        out: 8
-      - in: "09"
-        out: 9
-  # Common spoken minutes.
-  minute_word:
-    values:
-      - in: "o'clock"
-        out: 0
-      - in: "oclock"
-        out: 0
-      - in: "o clock"
-        out: 0
-      - in: "oh five"
-        out: 5
-      - in: "ten"
-        out: 10
-      - in: "fifteen"
-        out: 15
-      - in: "twenty"
-        out: 20
-      - in: "thirty"
-        out: 30
-      - in: "forty"
-        out: 40
-      - in: "forty five"
-        out: 45
-      - in: "fifty"
-        out: 50
-  ampm:
-    values:
-      - in: "am"
-        out: "am"
-      - in: "a m"
-        out: "am"
-      - in: "a.m."
-        out: "am"
-      - in: "a.m"
-        out: "am"
-      - in: "in the morning"
-        out: "am"
-      - in: "pm"
-        out: "pm"
-      - in: "p m"
-        out: "pm"
-      - in: "p.m."
-        out: "pm"
-      - in: "p.m"
-        out: "pm"
-      - in: "in the afternoon"
-        out: "pm"
-      - in: "in the evening"
-        out: "pm"
-      - in: "at night"
-        out: "pm"
-  # Whole times that are one word.
-  named_time:
-    values:
-      - in: "noon"
-        out: "12:00"
-      - in: "midday"
-        out: "12:00"
-      - in: "midnight"
-        out: "00:00"
+  # The words said for the time, taken as they are.
+  when:
+    wildcard: true
 
 expansion_rules:
-  # Every slot is optional in the intent script except the hour (or named_time).
-  alarm_hour: "({hour}|{hour_word:hour})"
-  alarm_minute: "({minute}|{minute_padded:minute}|{minute_word:minute})"
-  alarm_time: "(<alarm_hour>[[:| ]<alarm_minute>] [{ampm}]|{named_time})"
+  polite: "[please |can you |could you |will you ]"
+  cancel: "(cancel|delete|remove|turn off|clear)"

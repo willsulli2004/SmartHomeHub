@@ -5,9 +5,10 @@ here is matched the same way on the live instance. Run from the repo folder:
 
     .\\.venv\\Scripts\\python.exe -m pytest homeassistant
 
-These tests cover matching only: which intent a phrase triggers and the hour,
-minute and am/pm it carries. Turning those into a clock time is done by Home
-Assistant templates in packages/hub_alarms.yaml and is tested on the live instance.
+These tests cover matching only: which intent a phrase triggers and which words
+it hands over as the time ("when"). Turning those words into a clock time is
+done by the script hub_alarm_parse_time and is checked in
+test_alarm_templates.py.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import Any
 
 import pytest
 import yaml
-from hassil import Intents, recognize
+from hassil import Intents, recognize_best
 
 SENTENCES = Path(__file__).parent.parent / "custom_sentences" / "en" / "hub_alarms.yaml"
 
@@ -30,41 +31,45 @@ def intents() -> Intents:
 
 def match(intents: Intents, text: str) -> tuple[str, dict[str, Any]] | None:
     """Return (intent name, slot values) for a phrase, or None if not understood."""
-    result = recognize(text, intents)
+    result = recognize_best(text, intents)
     if result is None:
         return None
     return result.intent.name, {name: slot.value for name, slot in result.entities.items()}
 
 
-# Phrases as speech-to-text tends to write them, with the slots they must carry.
-SET_CASES: list[tuple[str, dict[str, Any]]] = [
-    ("Set an alarm for 7 AM.", {"hour": 7, "ampm": "am"}),
-    ("Set an alarm for 7 a.m.", {"hour": 7, "ampm": "am"}),
-    ("set an alarm for 7:30 PM", {"hour": 7, "minute": 30, "ampm": "pm"}),
-    ("Set an alarm for 7:30 p.m.", {"hour": 7, "minute": 30, "ampm": "pm"}),
-    ("Set an alarm for 7 30 pm", {"hour": 7, "minute": 30, "ampm": "pm"}),
-    ("Set an alarm for 07:05", {"hour": 7, "minute": 5}),
-    ("Set an alarm for 7:05 AM", {"hour": 7, "minute": 5, "ampm": "am"}),
-    ("Set an alarm for 19:15", {"hour": 19, "minute": 15}),
-    ("Set an alarm for 7", {"hour": 7}),
-    ("Set an alarm for 12 AM", {"hour": 12, "ampm": "am"}),
-    ("Set an alarm for seven thirty am", {"hour": 7, "minute": 30, "ampm": "am"}),
-    ("Set an alarm for seven", {"hour": 7}),
-    ("Set an alarm for 7 o'clock", {"hour": 7, "minute": 0}),
-    ("Set an alarm for 6 in the morning", {"hour": 6, "ampm": "am"}),
-    ("Set an alarm at 6:45 a.m.", {"hour": 6, "minute": 45, "ampm": "am"}),
-    ("Set another alarm for 8 AM", {"hour": 8, "ampm": "am"}),
-    ("Set a 7 AM alarm", {"hour": 7, "ampm": "am"}),
-    ("Wake me up at 6:45", {"hour": 6, "minute": 45}),
-    ("wake me at 5 am", {"hour": 5, "ampm": "am"}),
-    ("Set an alarm for noon", {"named_time": "12:00"}),
-    ("Set an alarm for midnight.", {"named_time": "00:00"}),
+# Phrases as speech-to-text tends to write them, with the words handed over as
+# the time. "3:10PM" with no space is the form that failed on the hardware.
+SET_CASES: list[tuple[str, str]] = [
+    ("Set an alarm for 7 AM.", "7 AM"),
+    ("Set an alarm for 7 a.m.", "7 a.m."),
+    ("set an alarm for 3:10PM", "3:10PM"),
+    ("Set an alarm for 3:10pm.", "3:10pm"),
+    ("Set an alarm for 3.10pm", "3.10pm"),
+    ("Set an alarm for 3:10 P.M.", "3:10 P.M."),
+    ("Set an alarm for 310 PM", "310 PM"),
+    ("Set an alarm for 7 30 pm", "7 30 pm"),
+    ("Set an alarm for 07:05", "07:05"),
+    ("Set an alarm for 19:15", "19:15"),
+    ("Set an alarm for 7", "7"),
+    ("Set an alarm for seven thirty am", "seven thirty am"),
+    ("Set an alarm for 7 o'clock", "7 o'clock"),
+    ("Set an alarm for 6 in the morning", "6 in the morning"),
+    ("Set an alarm at 6:45 a.m.", "6:45 a.m."),
+    ("Set another alarm for 8 AM", "8 AM"),
+    ("Set alarm for 8 AM", "8 AM"),
+    ("Set the alarm to 8 AM", "8 AM"),
+    ("Set a 7 AM alarm", "7 AM"),
+    ("Wake me up at 6:45", "6:45"),
+    ("wake me at 5 am", "5 am"),
+    ("Can you set an alarm for 3:10 PM?", "3:10 PM"),
+    ("Please set an alarm for noon", "noon"),
+    ("Set an alarm for midnight.", "midnight"),
 ]
 
 
-@pytest.mark.parametrize(("text", "slots"), SET_CASES)
-def test_set_alarm(intents: Intents, text: str, slots: dict[str, Any]) -> None:
-    assert match(intents, text) == ("HubSetAlarm", slots)
+@pytest.mark.parametrize(("text", "when"), SET_CASES)
+def test_set_alarm(intents: Intents, text: str, when: str) -> None:
+    assert match(intents, text) == ("HubSetAlarm", {"when": when})
 
 
 CANCEL_CASES: list[tuple[str, dict[str, Any]]] = [
@@ -73,11 +78,13 @@ CANCEL_CASES: list[tuple[str, dict[str, Any]]] = [
     ("Turn off the alarm", {}),
     ("Stop the alarm.", {}),
     ("Delete my alarm", {}),
-    ("Cancel my 7 AM alarm", {"hour": 7, "ampm": "am"}),
-    ("Cancel my 7:30 a.m. alarm.", {"hour": 7, "minute": 30, "ampm": "am"}),
-    ("Cancel the alarm for 7:30", {"hour": 7, "minute": 30}),
-    ("Cancel my alarm for 6 PM", {"hour": 6, "ampm": "pm"}),
-    ("Cancel my noon alarm", {"named_time": "12:00"}),
+    ("Please cancel my alarm", {}),
+    ("Cancel my 7 AM alarm", {"when": "7 AM"}),
+    ("Cancel my 7:30 a.m. alarm.", {"when": "7:30 a.m."}),
+    ("Cancel my 3:10PM alarm", {"when": "3:10PM"}),
+    ("Cancel the alarm for 7:30", {"when": "7:30"}),
+    ("Cancel my alarm for 6 PM", {"when": "6 PM"}),
+    ("Cancel my noon alarm", {"when": "noon"}),
 ]
 
 
@@ -125,12 +132,13 @@ def test_query_alarm(intents: Intents, text: str) -> None:
         # Timers belong to Home Assistant's own commands.
         "Set a timer for 5 minutes",
         "Cancel my timer",
+        # Device commands must not be caught by the alarm phrases.
+        "Turn off the kitchen light",
+        "Turn on the desk lights",
         # General questions must fall through to Claude.
         "Why is the sky blue?",
         "What is an alarm clock?",
-        # Not a time.
-        "Set an alarm for 25",
-        "Set an alarm for 7:75",
+        # No time at all.
         "Set an alarm",
     ],
 )

@@ -21,8 +21,10 @@
 #   action   esphome.sat_hub_stop_ring
 #   entity   binary_sensor.satellite_hub_ringing
 #
-# There are five alarm slots. Each is a date-and-time plus an on/off switch. An
-# alarm fires once and switches its slot off. To add slots, add helpers 6, 7...
+# There are five alarm slots. Each is a time of day plus an on/off switch, so an
+# alarm can be set from the app as easily as by voice: pick a time, switch it
+# on. A slot that is on fires the next time the clock reaches its time, then
+# switches itself off (alarms fire once). To add slots, add helpers 6, 7...
 # and extend every "range(1, 6)" and the trigger list in "Hub alarm: fire".
 
 # ---------------------------------------------------------------- helpers ----
@@ -30,27 +32,27 @@
 input_datetime:
   hub_alarm_1:
     name: Alarm 1 time
-    has_date: true
+    has_date: false
     has_time: true
     icon: mdi:alarm
   hub_alarm_2:
     name: Alarm 2 time
-    has_date: true
+    has_date: false
     has_time: true
     icon: mdi:alarm
   hub_alarm_3:
     name: Alarm 3 time
-    has_date: true
+    has_date: false
     has_time: true
     icon: mdi:alarm
   hub_alarm_4:
     name: Alarm 4 time
-    has_date: true
+    has_date: false
     has_time: true
     icon: mdi:alarm
   hub_alarm_5:
     name: Alarm 5 time
-    has_date: true
+    has_date: false
     has_time: true
     icon: mdi:alarm
 
@@ -152,59 +154,139 @@ script:
       - action: esphome.sat_hub_stop_ring
         continue_on_error: true
 
+  # Turns the words said for a time into an hour and minute. Used by the set and
+  # cancel scripts. Speech-to-text writes times many ways ("3:10 PM", "3:10pm",
+  # "3.10 p.m.", "310 PM", "three ten in the afternoon"), so the phrase files
+  # hand over whatever was said and this script makes sense of it.
+  #
+  # Returns ok (false if no time was found), minute, and hours: the 24-hour
+  # hours it could mean. With am or pm that is one hour; without, "7" could be
+  # 7 or 19 and both are returned.
+  #
+  # The patterns avoid backslashes on purpose ([0-9] and [ ] instead of the
+  # usual shorthands), so nothing depends on how quoting treats them.
+  hub_alarm_parse_time:
+    alias: "Hub alarm: understand a spoken time"
+    mode: parallel
+    max: 10
+    fields:
+      text:
+        description: The time as it was said.
+        example: "7:30 pm"
+    sequence:
+      - variables:
+          parsed: >-
+            {% set ns = namespace(t=(text | default('') | string | lower | trim), ok=false, hours=[], minute=0) %}
+            {% set ns.t = ns.t | regex_replace('^said:', '') | trim %}
+            {% set ns.t = ns.t | regex_replace('[.,!?]+$', '') %}
+            {% set swaps = [
+              ['(?<![a-z])a[.]?[ ]?m(?![a-z])[.]?', ' am '],
+              ['(?<![a-z])p[.]?[ ]?m(?![a-z])[.]?', ' pm '],
+              ['in the morning|this morning', ' am '],
+              ['in the afternoon|this afternoon|in the evening|this evening|at night|tonight', ' pm '],
+              ['(?<![a-z])(today|tomorrow|sharp|exactly)(?![a-z])', ' '],
+              ['(?<![a-z])o.?clock(?![a-z])', ' '],
+              ['(?<![a-z])forty[ -]five(?![a-z])', '45'],
+              ['(?<![a-z])(oh|o)[ ]five(?![a-z])', '05'],
+              ['(?<![a-z])fifteen(?![a-z])', '15'],
+              ['(?<![a-z])twenty(?![a-z])', '20'],
+              ['(?<![a-z])thirty(?![a-z])', '30'],
+              ['(?<![a-z])forty(?![a-z])', '40'],
+              ['(?<![a-z])fifty(?![a-z])', '50'],
+              ['(?<![a-z])twelve(?![a-z])', '12'],
+              ['(?<![a-z])eleven(?![a-z])', '11'],
+              ['(?<![a-z])ten(?![a-z])', '10'],
+              ['(?<![a-z])nine(?![a-z])', '9'],
+              ['(?<![a-z])eight(?![a-z])', '8'],
+              ['(?<![a-z])seven(?![a-z])', '7'],
+              ['(?<![a-z])six(?![a-z])', '6'],
+              ['(?<![a-z])five(?![a-z])', '5'],
+              ['(?<![a-z])four(?![a-z])', '4'],
+              ['(?<![a-z])three(?![a-z])', '3'],
+              ['(?<![a-z])two(?![a-z])', '2'],
+              ['(?<![a-z])one(?![a-z])', '1']
+            ] %}
+            {% for swap in swaps %}
+              {% set ns.t = ns.t | regex_replace(swap[0], swap[1]) %}
+            {% endfor %}
+            {% set ns.t = ns.t | regex_replace('[ ]+', ' ') | trim %}
+            {% if ns.t in ['noon', 'midday', '12 noon'] %}
+              {% set ns.ok = true %}
+              {% set ns.hours = [12] %}
+            {% elif ns.t in ['midnight', '12 midnight'] %}
+              {% set ns.ok = true %}
+              {% set ns.hours = [0] %}
+            {% else %}
+              {% set found = ns.t | regex_findall('^([0-9]{1,2})(?:[ ]?[:.-][ ]?([0-9]{2})|[ ]([0-9]{2})|([0-9]{2}))?[ ]?(am|pm)?$') %}
+              {% if found | length > 0 %}
+                {% set g = found[0] %}
+                {% set h = g[0] | int %}
+                {% set m = (g[1] or g[2] or g[3] or '0') | int %}
+                {% if h <= 23 and m <= 59 %}
+                  {% set ns.ok = true %}
+                  {% set ns.minute = m %}
+                  {% if h == 0 or h > 12 %}
+                    {% set ns.hours = [h] %}
+                  {% elif g[4] == 'am' %}
+                    {% set ns.hours = [h % 12] %}
+                  {% elif g[4] == 'pm' %}
+                    {% set ns.hours = [h % 12 + 12] %}
+                  {% else %}
+                    {% set ns.hours = [h % 12, h % 12 + 12] %}
+                  {% endif %}
+                {% endif %}
+              {% endif %}
+            {% endif %}
+            {{ {'ok': ns.ok, 'hours': ns.hours, 'minute': ns.minute} }}
+      - stop: "Parsed"
+        response_variable: parsed
+
   # Voice: "set an alarm for 7:30 AM". Picks the first free slot.
-  # hour is -1 and the other fields are empty when they were not said.
   hub_alarm_set:
     alias: "Hub alarm: set by voice"
     mode: queued
     fields:
-      hour:
-        description: Hour as said, 0 to 23, or -1.
-      minute:
-        description: Minute, 0 to 59.
-      ampm:
-        description: am, pm or empty.
-      named_time:
-        description: A whole time as HH:MM (noon, midnight), or empty.
+      when:
+        description: The time as it was said.
+        example: "7:30 am"
     sequence:
+      - action: script.hub_alarm_parse_time
+        data:
+          text: "{{ when | default('') }}"
+        response_variable: parsed
+      - if:
+          - condition: template
+            value_template: "{{ not parsed.ok }}"
+        then:
+          - variables:
+              result:
+                speech: "Sorry, I didn't catch the time. Say it like seven thirty A M."
+          - stop: "No time understood"
+            response_variable: result
       - variables:
-          # The next moment the clock shows the time that was said. With am or
-          # pm there is one candidate hour; without, "7" could be 07:00 or
-          # 19:00 and the sooner one wins.
-          target: >-
-            {% set n = now() %}
-            {% if named_time %}
-              {% set m = named_time.split(':')[1] | int %}
-              {% set cands = [named_time.split(':')[0] | int] %}
-            {% else %}
-              {% set h = hour | int %}
-              {% set m = minute | int(0) %}
-              {% if ampm == 'am' %}
-                {% set cands = [h % 12] %}
-              {% elif ampm == 'pm' %}
-                {% set cands = [h % 12 + 12] %}
-              {% elif h == 0 or h > 12 %}
-                {% set cands = [h] %}
-              {% else %}
-                {% set cands = [h % 12, h % 12 + 12] %}
-              {% endif %}
-            {% endif %}
-            {% set ns = namespace(best=none) %}
-            {% for c in cands %}
-              {% set t = n.replace(hour=c, minute=m, second=0, microsecond=0) %}
-              {% if t <= n %}
-                {% set t = t + timedelta(days=1) %}
-              {% endif %}
-              {% if ns.best is none or t < ns.best %}
-                {% set ns.best = t %}
+          # Of the hours it could mean, the one that comes round soonest. An
+          # alarm for the current minute means tomorrow.
+          hour24: >-
+            {% set clock = now().hour * 60 + now().minute %}
+            {% set ns = namespace(best=-1, wait=9999) %}
+            {% for h in parsed.hours %}
+              {% set wait = (h * 60 + parsed.minute - clock) % 1440 %}
+              {% set wait = 1440 if wait == 0 else wait %}
+              {% if wait < ns.wait %}
+                {% set ns.wait = wait %}
+                {% set ns.best = h %}
               {% endif %}
             {% endfor %}
-            {{ ns.best.strftime('%Y-%m-%d %H:%M:%S') }}
+            {{ ns.best }}
+      - variables:
+          # The slot's value, "HH:MM:SS".
+          target: "{{ '%02d:%02d:00' | format(hour24 | int, parsed.minute | int) }}"
           # How the time is spoken: "7 AM", "7:30 PM", plus "tomorrow" if so.
           spoken: >-
-            {% set t = strptime(target, '%Y-%m-%d %H:%M:%S') %}
-            {{ t.strftime('%-I %p') if t.minute == 0 else t.strftime('%-I:%M %p') }}{{ ' tomorrow' if t.date() != now().date() else '' }}
-          # An alarm already set for exactly this moment, if any.
+            {% set h = hour24 | int %}
+            {% set m = parsed.minute | int %}
+            {{ h % 12 or 12 }}{{ ':%02d' | format(m) if m else '' }} {{ 'AM' if h < 12 else 'PM' }}{{ ' tomorrow' if h * 60 + m <= now().hour * 60 + now().minute else '' }}
+          # An alarm already set for this time, if any.
           duplicate: >-
             {% set ns = namespace(found=false) %}
             {% for i in range(1, 6) %}
@@ -245,7 +327,7 @@ script:
         target:
           entity_id: "input_datetime.hub_alarm_{{ slot }}"
         data:
-          datetime: "{{ target }}"
+          time: "{{ target }}"
       - action: input_boolean.turn_on
         target:
           entity_id: "input_boolean.hub_alarm_{{ slot }}"
@@ -261,14 +343,9 @@ script:
     alias: "Hub alarm: cancel by voice"
     mode: queued
     fields:
-      hour:
-        description: Hour as said, 0 to 23, or -1 if no time was said.
-      minute:
-        description: Minute, 0 to 59.
-      ampm:
-        description: am, pm or empty.
-      named_time:
-        description: A whole time as HH:MM (noon, midnight), or empty.
+      when:
+        description: The time as it was said, or empty if no time was said.
+        example: "7 am"
     sequence:
       - if:
           - condition: state
@@ -283,8 +360,12 @@ script:
                 speech: "Alarm stopped."
           - stop: "Stopped the ringing alarm"
             response_variable: result
+      - action: script.hub_alarm_parse_time
+        data:
+          text: "{{ when | default('') }}"
+        response_variable: parsed
       - variables:
-          time_given: "{{ (named_time | default('')) != '' or (hour | int(-1)) >= 0 }}"
+          time_given: "{{ (when | default('') | string | regex_replace('^said:', '') | trim) != '' }}"
           # Slots that are switched on.
           active: >-
             {% set ns = namespace(list=[]) %}
@@ -294,6 +375,7 @@ script:
               {% endif %}
             {% endfor %}
             {{ ns.list }}
+      - variables:
           # Slots to cancel: the only alarm if no time was said, otherwise every
           # alarm at that clock time. Without am or pm, both halves of the day
           # match.
@@ -303,26 +385,10 @@ script:
               {% if active | length == 1 %}
                 {% set ns.list = active %}
               {% endif %}
-            {% else %}
-              {% if named_time %}
-                {% set m = named_time.split(':')[1] | int %}
-                {% set cands = [named_time.split(':')[0] | int] %}
-              {% else %}
-                {% set h = hour | int %}
-                {% set m = minute | int(0) %}
-                {% if ampm == 'am' %}
-                  {% set cands = [h % 12] %}
-                {% elif ampm == 'pm' %}
-                  {% set cands = [h % 12 + 12] %}
-                {% elif h == 0 or h > 12 %}
-                  {% set cands = [h] %}
-                {% else %}
-                  {% set cands = [h % 12, h % 12 + 12] %}
-                {% endif %}
-              {% endif %}
+            {% elif parsed.ok %}
               {% for i in active %}
                 {% set s = states('input_datetime.hub_alarm_' ~ i) %}
-                {% if (s[11:13] | int(-1)) in cands and (s[14:16] | int(-1)) == m %}
+                {% if (s[0:2] | int(-1)) in parsed.hours and (s[3:5] | int(-1)) == parsed.minute %}
                   {% set ns.list = ns.list + [i] %}
                 {% endif %}
               {% endfor %}
@@ -344,8 +410,13 @@ script:
           - variables:
               result:
                 speech: >-
-                  {{ "You have no alarm at that time." if time_given
-                     else "You have " ~ (active | length) ~ " alarms. Say which one to cancel, or say cancel all alarms." }}
+                  {% if not time_given %}
+                    You have {{ active | length }} alarms. Say which one to cancel, or say cancel all alarms.
+                  {% elif not parsed.ok %}
+                    Sorry, I didn't catch which alarm. Say it like cancel my seven A M alarm.
+                  {% else %}
+                    You have no alarm at that time.
+                  {% endif %}
           - stop: "Nothing matched"
             response_variable: result
       - variables:
@@ -353,8 +424,10 @@ script:
             speech: >-
               {% set ns = namespace(parts=[]) %}
               {% for i in matches %}
-                {% set t = strptime(states('input_datetime.hub_alarm_' ~ i), '%Y-%m-%d %H:%M:%S') %}
-                {% set ns.parts = ns.parts + [t.strftime('%-I %p') if t.minute == 0 else t.strftime('%-I:%M %p')] %}
+                {% set s = states('input_datetime.hub_alarm_' ~ i) %}
+                {% set h = s[0:2] | int %}
+                {% set m = s[3:5] | int %}
+                {% set ns.parts = ns.parts + [(h % 12 or 12) ~ (':%02d' | format(m) if m else '') ~ (' AM' if h < 12 else ' PM')] %}
               {% endfor %}
               Cancelled your {{ ns.parts | join(' and ') }} alarm{{ 's' if matches | length > 1 else '' }}.
       - action: input_boolean.turn_off
@@ -419,23 +492,25 @@ script:
       - variables:
           result:
             speech: >-
-              {% set ns = namespace(times=[]) %}
+              {% set clock = now().hour * 60 + now().minute %}
+              {% set ns = namespace(items=[]) %}
               {% for i in range(1, 6) %}
                 {% if is_state('input_boolean.hub_alarm_' ~ i, 'on') %}
-                  {% set ns.times = ns.times + [states('input_datetime.hub_alarm_' ~ i)] %}
+                  {% set s = states('input_datetime.hub_alarm_' ~ i) %}
+                  {% set h = s[0:2] | int %}
+                  {% set m = s[3:5] | int %}
+                  {% set wait = (h * 60 + m - clock) % 1440 %}
+                  {% set label = (h % 12 or 12) ~ (':%02d' | format(m) if m else '') ~ (' AM' if h < 12 else ' PM') ~ (' tomorrow' if h * 60 + m <= clock else '') %}
+                  {% set ns.items = ns.items + [{'wait': 1440 if wait == 0 else wait, 'label': label}] %}
                 {% endif %}
               {% endfor %}
-              {% set out = namespace(parts=[]) %}
-              {% for s in ns.times | sort %}
-                {% set t = strptime(s, '%Y-%m-%d %H:%M:%S') %}
-                {% set out.parts = out.parts + [(t.strftime('%-I %p') if t.minute == 0 else t.strftime('%-I:%M %p')) ~ (' tomorrow' if t.date() != now().date() else '')] %}
-              {% endfor %}
-              {% if out.parts | length == 0 %}
+              {% set labels = ns.items | sort(attribute='wait') | map(attribute='label') | list %}
+              {% if labels | length == 0 %}
                 You have no alarms set.
-              {% elif out.parts | length == 1 %}
-                Your alarm is set for {{ out.parts[0] }}.
+              {% elif labels | length == 1 %}
+                Your alarm is set for {{ labels[0] }}.
               {% else %}
-                You have {{ out.parts | length }} alarms: {{ out.parts[:-1] | join(', ') }} and {{ out.parts[-1] }}.
+                You have {{ labels | length }} alarms: {{ labels[:-1] | join(', ') }} and {{ labels[-1] }}.
               {% endif %}
       - stop: "Listed"
         response_variable: result
@@ -443,8 +518,8 @@ script:
 # ------------------------------------------------------------ automations ----
 
 automation:
-  # An alarm slot's time is reached. The slot switches off (alarms fire once)
-  # and the alarm starts.
+  # The clock reaches a slot's time. If the slot is on, it switches off (alarms
+  # fire once) and the alarm starts. A slot that is off does nothing.
   - id: hub_alarm_fire
     alias: "Hub alarm: fire"
     mode: queued
@@ -584,18 +659,20 @@ automation:
                 'ts': utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')} | to_json }}
 
 # ---------------------------------------------------------- voice commands ----
-# The phrases are in custom_sentences/en/hub_alarms.yaml. Each intent runs a script
-# above and speaks the sentence the script hands back.
+# The phrases are in custom_sentences/en/hub_alarms.yaml. Each intent runs a
+# script above and speaks the sentence the script hands back. "when" is the time
+# exactly as it was said; hub_alarm_parse_time makes sense of it.
+#
+# The words are passed on with "said:" in front. Without it, Home Assistant
+# would turn words that look like a number into one before the script sees
+# them, and "7.30" would arrive as 7.3. The scripts strip the prefix.
 
 intent_script:
   HubSetAlarm:
     action:
       - action: script.hub_alarm_set
         data:
-          hour: "{{ hour | default(-1) }}"
-          minute: "{{ minute | default(0) }}"
-          ampm: "{{ ampm | default('') }}"
-          named_time: "{{ named_time | default('') }}"
+          when: "said:{{ when | default('') }}"
         response_variable: result
       - stop: ""
         response_variable: result
@@ -606,10 +683,7 @@ intent_script:
     action:
       - action: script.hub_alarm_cancel
         data:
-          hour: "{{ hour | default(-1) }}"
-          minute: "{{ minute | default(0) }}"
-          ampm: "{{ ampm | default('') }}"
-          named_time: "{{ named_time | default('') }}"
+          when: "said:{{ when | default('') }}"
         response_variable: result
       - stop: ""
         response_variable: result
