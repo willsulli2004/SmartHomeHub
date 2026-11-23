@@ -5,7 +5,8 @@ everything the satellite needs: a fixed address, backups, an MQTT broker, and a 
 
 Sections 2 to 10 are steps to do once, in order. Section 11 is the test checklist. Section 12 is for
 rebuilding after a failure. Section 13 (added in M4) sets up device commands, timers and Claude for
-general questions.
+general questions. Section 14
+(added in M5) installs the alarm package.
 
 ## Where things happen
 
@@ -584,3 +585,196 @@ To see which side handled a sentence: **Settings → Voice assistants →** the 
 To undo this section: open **Jewel**, set **Conversation agent** back to **Home Assistant**, and click
 **Update**. To remove Claude completely, delete the **Anthropic** integration and revoke the key at
 `console.anthropic.com`.
+
+## 14. Alarms (M5)
+
+Alarms live in Home Assistant: five alarm slots, the logic for firing and stopping them, the MQTT
+messages for the robot, and the voice commands. All of it is in two files in this repo's
+`homeassistant/` folder, which this section copies onto the live instance.
+
+Do this **after** flashing firmware 0.6.0 or later, because the files refer to things that firmware
+adds to the satellite.
+
+As in section 13, menu names are from Home Assistant's documentation, not from sight of this install.
+
+### 14.1 Install the File editor
+
+**Where:** HA web UI → **Settings → Add-ons → Add-on store**.
+
+1. Search for **File editor**, open it, and click **Install**.
+2. On the **Info** tab, turn on **Show in sidebar**, then click **Start**.
+3. Click **File editor** in the sidebar. The folder icon at the top left opens the file browser,
+   which starts in Home Assistant's configuration folder (`/config`, shown as `homeassistant/`).
+
+### 14.2 Turn on packages
+
+**Where:** File editor → folder icon → `configuration.yaml`.
+
+Look for a line that reads exactly `homeassistant:` at the start of a line.
+
+- **If there is none,** add these two lines at the end of the file:
+
+  ```yaml
+  homeassistant:
+    packages: !include_dir_named packages
+  ```
+
+- **If there is one,** add only the second line beneath it, indented by two spaces like its
+  neighbours.
+
+Save with the disk icon. Do not restart yet.
+
+### 14.3 Copy the two files
+
+For each file, open it on the PC (in PyCharm, or on GitHub with the **Raw** button), select
+everything, and copy it.
+
+| Copy from the repo | Create on Home Assistant |
+|---|---|
+| `homeassistant/packages/hub_alarms.yaml` | `packages/hub_alarms.yaml` |
+| `homeassistant/custom_sentences/en/hub_alarms.yaml` | `custom_sentences/en/hub_alarms.yaml` |
+
+In the File editor's file browser:
+
+1. Use the **new folder** icon to create `packages`. Click into it, use the **new file** icon to
+   create `hub_alarms.yaml`, paste, and save.
+2. Go back to the top folder. Create the folder `custom_sentences`, then `en` inside it, then the file
+   `hub_alarms.yaml` inside that. Paste and save.
+
+Both files are named `hub_alarms.yaml`; the folder is what tells them apart. Take care to copy from
+the repo's `homeassistant/` folder. The firmware has its own `firmware/satellite/packages/alarm.yaml`,
+which is a different kind of file: pasting that one makes the configuration check fail with an error
+about `!lambda`.
+
+### 14.4 Check and restart
+
+1. **Developer tools → YAML → Check configuration.** It must report that the configuration is valid.
+   If it reports an error, copy the message into the PR and do not restart.
+2. **Settings → System →** the power icon at the top right **→ Restart Home Assistant.** A full
+   restart is needed the first time; "quick reload" does not pick up new voice phrases.
+
+### 14.5 Check the names match
+
+The package refers to three things on the satellite by name. Check each exists:
+
+| Where to look | What should be there |
+|---|---|
+| **Developer tools → Actions**, type `sat_hub` | `esphome.sat_hub_alarm_ring` and `esphome.sat_hub_stop_ring` |
+| **Developer tools → States**, type `ringing` | `binary_sensor.satellite_hub_ringing` |
+
+If the two actions are missing, reload the ESPHome integration (**Settings → Devices & services →
+ESPHome →** three dots on Satellite Hub **→ Reload**) and look again. If a name is different on your
+install, change it in `packages/hub_alarms.yaml` on Home Assistant (each appears once or twice, and the
+top of the file lists them), restart, and tell Claude so the repo copy can be corrected.
+
+### 14.6 Set the alarm timeout
+
+**Where:** **Developer tools → States**, type `alarm timeout`, click the entity.
+
+Set **Alarm timeout** to `10`. A new install starts at 1 minute. This is how long an alarm rings
+before it gives up; change it here whenever you like.
+
+### 14.7 What you can change from the app
+
+Nothing below needs a flash or a file edit.
+
+**On the satellite** (**Settings → Devices & services → ESPHome → Satellite Hub**, under
+**Configuration**):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| Timer Volume Min / Max | 25% / 50% | a timer rings at the current volume, kept inside this range |
+| Alarm Volume | 75% | an alarm always rings at this volume |
+| Timer Ring Timeout | 5 min | a timer stops ringing by itself after this |
+| Timer Ring Colour | purple | colour and brightness of the circling light for timers |
+| Alarm Ring Colour | orange-red | the same, for alarms |
+
+The two colours appear as lights so that Home Assistant shows a colour picker. They are not real
+lights: pick a colour and brightness, and the ring uses it the next time it rings. Switching one off
+does nothing. Volumes are percentages of the hub's safe range, so 100% is still under the speaker
+level cap.
+
+**In Home Assistant** (**Developer tools → States**, or add them to a dashboard):
+
+| Setting | Meaning |
+|---|---|
+| Alarm timeout | minutes an alarm rings before it gives up |
+| Alarm 1 to 5, and Alarm 1 to 5 time | the alarm slots: a switch and a time of day each |
+
+Setting an alarm from the app: pick a slot's time, then turn its switch on. It rings on the hub the
+next time the clock reaches that time, then switches itself off. Section 14.11 adds a dashboard page
+that puts the alarms and all the settings above in one place.
+
+### 14.8 Voice commands
+
+| Say | What happens |
+|---|---|
+| "Set an alarm for 7 AM" / "for 7:30 PM" / "for 19:15" | sets an alarm in the first free slot |
+| "Set an alarm for" something that is not a time | the hub says it did not catch the time |
+| "Set an alarm for 7" | sets it for the next 7 o'clock to come, morning or evening |
+| "Wake me up at 6:45" | the same as "set an alarm" |
+| "When is my alarm?" / "What alarms are set?" | lists the alarms, soonest first |
+| "Cancel my alarm" | cancels the alarm if there is only one; otherwise asks which |
+| "Cancel my 7 AM alarm" | cancels that one |
+| "Cancel all alarms" | cancels every alarm |
+| "Stop the alarm" | stops an alarm that is going off |
+
+An alarm fires once and its slot switches off. While it rings, turning the knob, "stop" or "Hey
+Jarvis" also stops it.
+
+### 14.9 Watching the MQTT messages
+
+**Where:** **Settings → Devices & services → MQTT → Configure**.
+
+Under **Listen to a topic**, enter `hub/alarm/#` and start listening. When an alarm goes off a
+message appears on `hub/alarm/start`, and when it stops, one on `hub/alarm/stop` with the reason
+(`user`, `caught` or `timeout`).
+
+To pretend to be the robot: while an alarm rings, copy the `alarm_id` from the start message and
+publish to `alarmbot/caught` with this payload, putting the id in place of `ID`:
+
+```json
+{"alarm_id": "ID"}
+```
+
+The alarm stops with reason `caught`. A wrong id is ignored.
+
+### 14.10 Going back
+
+Delete `packages/hub_alarms.yaml` and `custom_sentences/en/hub_alarms.yaml` in the File editor and restart Home
+Assistant. The alarm helpers, scripts and voice commands disappear. The `packages:` line in
+`configuration.yaml` can stay; an empty `packages` folder is harmless.
+
+### 14.11 The Alarms dashboard
+
+A page in the app for setting and changing alarms and for tuning how timers and alarms ring. Alarms
+set here ring on the hub exactly like alarms set by voice; both use the same five slots.
+
+**Where:** HA web UI → **Settings → Dashboards**.
+
+1. Click **Add dashboard** and choose **New dashboard from scratch**.
+2. Title `Alarms`, icon `mdi:alarm`, leave **Show in sidebar** on, and click **Create**.
+3. Open **Alarms** from the sidebar. Click the pencil at the top right to edit. If it asks whether to
+   take control of the dashboard, confirm.
+4. Click the three dots at the top right and choose **Raw configuration editor**.
+5. Delete everything in the editor. On the PC, open `homeassistant/dashboards/hub_alarms.yaml` from
+   the repo, copy all of it, and paste it in.
+6. Click **Save**, then close the editor and click **Done**.
+
+The page has five cards:
+
+| Card | What it is for |
+|---|---|
+| Stop the alarm | a button that only appears while an alarm is going off |
+| Alarms | the five alarms: a time and an on/off switch each |
+| How alarms ring | volume, light colour, how long before giving up, and a button to ring the alarm now as a test |
+| How timers ring | quietest and loudest volume, light colour, how long before giving up |
+| Status | whether the hub is ringing, and the last alarm id |
+
+**To set an alarm:** tap an alarm's time and pick it, then switch that alarm on. **To change it:**
+pick a new time. **To cancel it:** switch it off. An alarm switches itself off after it has rung.
+
+If a row shows "Entity not available", the satellite's entity has a different id on your install.
+Edit the card, pick the right entity for that row, and tell Claude so the repo copy can be corrected.
+
+The same dashboard works in the phone app.

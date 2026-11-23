@@ -1,53 +1,240 @@
-# Ringing: the repeating sound and LED state for a finished timer (M4). Alarms
-# (M5) will ring through the same two scripts.
+# Ringing: the repeating sound and LED state for a finished timer (M4) and for
+# an alarm (M5).
 #
-#   ring_start   begin ringing; does nothing if already ringing
+#   timer_ring   a timer finished: ring as a timer, unless already ringing
+#   alarm_ring   action called by Home Assistant: ring as an alarm
+#   stop_ring    action called by Home Assistant: stop ringing
 #   ring_stop    stop ringing; does nothing if not ringing
 #
-# What starts and stops the ringing is decided elsewhere, so new triggers only
-# need to call these scripts:
-#   start   voice.yaml      a Home Assistant timer finishes
-#   stop    voice.yaml      "Hey Jarvis" or "stop" is heard
-#           controls.yaml   the knob is turned either way
-#           this file       ring_timeout passes with nobody stopping it
+# What starts and stops the ringing is decided elsewhere:
+#   start   voice.yaml       a Home Assistant timer finishes
+#           Home Assistant   an alarm's time is reached (homeassistant/packages/hub_alarms.yaml)
+#   stop    voice.yaml       "Hey Jarvis" or "stop" is heard
+#           controls.yaml    the knob is turned either way
+#           Home Assistant   the robot was caught, the alarm timed out, or a voice command
+#           this file        the give-up time passes with nobody stopping it
 #
-# The sound plays through the media player, never the speaker directly, so the
-# speaker level cap in audio.yaml applies and the amp un-mutes for it.
+# Alarms belong to Home Assistant: it decides when one fires, tells the robot
+# over MQTT, and tracks why it stopped. The satellite only rings and reports
+# whether it is ringing (the Ringing sensor below).
+#
+# Settings you can change from the Home Assistant app, on the Satellite Hub
+# device page under Configuration. They are remembered across restarts:
+#   Timer Volume Min / Max   the timer's ringing volume range
+#   Alarm Volume             the alarm's ringing volume
+#   Timer Ring Timeout       minutes before a timer gives up
+#   Timer Ring Colour        colour and brightness of the circling light
+#   Alarm Ring Colour        the same, for alarms
+# The alarm's own timeout is "Alarm timeout" in Home Assistant, because Home
+# Assistant has to know the reason an alarm stopped.
+#
+# The sounds play through the media player, never the speaker directly, so the
+# speaker level cap in audio.yaml applies whatever the volumes above are set to.
 
 substitutions:
-  # The sound to repeat. To use your own, put the file in sounds/ and change
-  # this line (see sounds/README.md). The path is relative to sat-hub.yaml.
-  ring_sound_file: sounds/timer_ring.wav
+  # The sounds to repeat. To use your own, put the file in sounds/ and change
+  # the line (see sounds/README.md). Paths are relative to sat-hub.yaml.
+  timer_sound_file: sounds/timer_ring.wav
+  alarm_sound_file: sounds/alarm_ring.wav
   # Silence between repeats. This is when the hub can hear "stop" or "Hey
   # Jarvis": there is no echo cancellation, so it hears poorly while it beeps.
   ring_gap: 1200ms
-  # Ringing gives up by itself after this long.
-  ring_timeout: 5min
-  # Ringing volume, as media player volume (0.0 to 1.0, the number the knob and
-  # Home Assistant show). The current volume is used if it lies between these
-  # two; below the range the ring uses ring_volume_min, above it ring_volume_max.
-  # The volume is put back when the ringing stops.
-  ring_volume_min: "0.25"
-  ring_volume_max: "0.50"
+  # Safety net only. Home Assistant normally stops an alarm (its "Alarm
+  # timeout"). If Home Assistant disappears mid-alarm, the satellite gives up
+  # by itself after this many minutes.
+  alarm_safety_minutes: "30"
+
+esphome:
+  includes:
+    - includes/ring_spinner.h
+  on_boot:
+    # The "stop" word must be off except while ringing. The wake word engine
+    # remembers which words were on, so switch it off at every start-up.
+    - priority: -100
+      then:
+        - micro_wake_word.disable_model: stop_word
+
+api:
+  actions:
+    # Home Assistant: an alarm is going off.
+    - action: alarm_ring
+      then:
+        - globals.set:
+            id: ring_kind
+            value: "1"
+        - if:
+            condition:
+              lambda: return id(ringing);
+            then:
+              # Already ringing for a timer: carry on as an alarm instead. The
+              # loop in ring_start picks up the alarm sound on its next repeat.
+              - media_player.volume_set:
+                  id: sat_media_player
+                  volume: !lambda return id(alarm_volume).state / 100.0f;
+              - script.execute: status_light_apply
+              - script.execute: ring_give_up
+            else:
+              - script.execute: ring_start
+    # Home Assistant: stop ringing (robot caught, timeout, or a voice command).
+    - action: stop_ring
+      then:
+        - script.execute: ring_stop
 
 globals:
-  # True while the hub is ringing. leds.yaml shows the ringing colour while it
+  # True while the hub is ringing. leds.yaml shows the ringing light while it
   # is set; controls.yaml and voice.yaml use it to treat a knob turn or a wake
   # word as "stop".
   - id: ringing
     type: bool
     restore_value: false
     initial_value: "false"
+  # What is ringing: 0 a timer, 1 an alarm.
+  - id: ring_kind
+    type: int
+    restore_value: false
+    initial_value: "0"
   # The volume in use before the ringing started.
   - id: ring_saved_volume
     type: float
     restore_value: false
     initial_value: "0.5"
 
+binary_sensor:
+  # On while the hub is ringing. Home Assistant watches it: if it turns off
+  # while an alarm is going off, the alarm was stopped at the hub (knob or voice).
+  - platform: template
+    id: ringing_sensor
+    name: Ringing
+    icon: mdi:bell-ring
+    lambda: return id(ringing);
+
+number:
+  # Ringing volumes, as media player volume in percent (the number the knob and
+  # Home Assistant show). A timer rings at the current volume if that lies
+  # between Min and Max; below the range it uses Min, above it Max.
+  - platform: template
+    id: timer_volume_min
+    name: Timer Volume Min
+    icon: mdi:volume-low
+    entity_category: config
+    unit_of_measurement: "%"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 25
+    optimistic: true
+    restore_value: true
+  - platform: template
+    id: timer_volume_max
+    name: Timer Volume Max
+    icon: mdi:volume-high
+    entity_category: config
+    unit_of_measurement: "%"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 50
+    optimistic: true
+    restore_value: true
+  # An alarm always rings at this volume, whatever the knob is set to.
+  - platform: template
+    id: alarm_volume
+    name: Alarm Volume
+    icon: mdi:volume-vibrate
+    entity_category: config
+    unit_of_measurement: "%"
+    min_value: 10
+    max_value: 100
+    step: 5
+    initial_value: 75
+    optimistic: true
+    restore_value: true
+  - platform: template
+    id: timer_ring_timeout
+    name: Timer Ring Timeout
+    icon: mdi:timer-off-outline
+    entity_category: config
+    unit_of_measurement: min
+    mode: box
+    min_value: 1
+    max_value: 30
+    step: 1
+    initial_value: 5
+    optimistic: true
+    restore_value: true
+
+output:
+  # The two colour pickers below need somewhere to "send" their colour. These
+  # outputs do nothing; the Ringing effects read the picked colour directly.
+  - platform: template
+    id: colour_picker_red
+    type: float
+    write_action:
+      - lambda: return;
+  - platform: template
+    id: colour_picker_green
+    type: float
+    write_action:
+      - lambda: return;
+  - platform: template
+    id: colour_picker_blue
+    type: float
+    write_action:
+      - lambda: return;
+
+light:
+  # Colour pickers, not real lights. Pick a colour and brightness in Home
+  # Assistant and the circling light uses it the next time the hub rings.
+  # Switching one "off" changes nothing.
+  - platform: rgb
+    id: timer_ring_colour
+    name: Timer Ring Colour
+    icon: mdi:palette
+    entity_category: config
+    red: colour_picker_red
+    green: colour_picker_green
+    blue: colour_picker_blue
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_ON
+    initial_state:
+      brightness: 100%
+      red: 70%
+      green: 0%
+      blue: 100%
+  - platform: rgb
+    id: alarm_ring_colour
+    name: Alarm Ring Colour
+    icon: mdi:palette
+    entity_category: config
+    red: colour_picker_red
+    green: colour_picker_green
+    blue: colour_picker_blue
+    default_transition_length: 0s
+    restore_mode: RESTORE_DEFAULT_ON
+    initial_state:
+      brightness: 100%
+      red: 100%
+      green: 25%
+      blue: 0%
+
 script:
+  # A timer finished. An alarm that is already ringing is left alone.
+  - id: timer_ring
+    mode: single
+    then:
+      - if:
+          condition:
+            lambda: return !id(ringing);
+          then:
+            - globals.set:
+                id: ring_kind
+                value: "0"
+            - script.execute: ring_start
+
+  # Rings as whatever ring_kind says until ring_stop is called.
   - id: ring_start
-    # single: a second timer finishing while the hub already rings changes
-    # nothing; one stop silences it.
+    # single: a second start while the hub already rings changes nothing; one
+    # stop silences it.
     mode: single
     then:
       - globals.set:
@@ -59,7 +246,13 @@ script:
       - media_player.volume_set:
           id: sat_media_player
           volume: !lambda |-
-            return clamp(id(sat_media_player).volume, ${ring_volume_min}f, ${ring_volume_max}f);
+            if (id(ring_kind) == 1)
+              return id(alarm_volume).state / 100.0f;
+            // Timer: the current volume, kept inside the Min..Max range. The
+            // two are sorted first in case Min was set above Max.
+            const float low = std::min(id(timer_volume_min).state, id(timer_volume_max).state) / 100.0f;
+            const float high = std::max(id(timer_volume_min).state, id(timer_volume_max).state) / 100.0f;
+            return clamp(id(sat_media_player).volume, low, high);
       # The "stop" word only listens while the hub is ringing.
       - micro_wake_word.enable_model: stop_word
       - script.execute: status_light_apply
@@ -68,10 +261,19 @@ script:
           condition:
             lambda: return id(ringing);
           then:
-            - media_player.speaker.play_on_device_media_file:
-                id: sat_media_player
-                media_file: ring_sound
-                announcement: true
+            - if:
+                condition:
+                  lambda: return id(ring_kind) == 1;
+                then:
+                  - media_player.speaker.play_on_device_media_file:
+                      id: sat_media_player
+                      media_file: alarm_sound
+                      announcement: true
+                else:
+                  - media_player.speaker.play_on_device_media_file:
+                      id: sat_media_player
+                      media_file: timer_sound
+                      announcement: true
             # Give the player a moment to start, then wait for the sound to end.
             - delay: 300ms
             - wait_until:
@@ -100,20 +302,19 @@ script:
             - media_player.volume_set:
                 id: sat_media_player
                 volume: !lambda return id(ring_saved_volume);
+            - globals.set:
+                id: ring_kind
+                value: "0"
             - script.execute: status_light_apply
 
-  # Stops the ringing if nobody else has.
+  # Stops the ringing if nobody else has. Restarted when a ringing timer turns
+  # into an alarm, so the alarm gets its own, longer limit.
   - id: ring_give_up
     mode: restart
     then:
-      - delay: ${ring_timeout}
+      - delay: !lambda |-
+          if (id(ring_kind) == 1)
+            return ${alarm_safety_minutes} * 60 * 1000;
+          return (uint32_t) (id(timer_ring_timeout).state * 60.0f * 1000.0f);
       - logger.log: "Ringing timed out"
       - script.execute: ring_stop
-
-esphome:
-  on_boot:
-    # The "stop" word must be off except while ringing. The wake word engine
-    # remembers which words were on, so switch it off at every start-up.
-    - priority: -100
-      then:
-        - micro_wake_word.disable_model: stop_word

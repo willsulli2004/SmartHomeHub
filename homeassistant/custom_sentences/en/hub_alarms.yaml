@@ -1,0 +1,61 @@
+# Spoken phrases for the hub's alarms (M5).
+#
+# Goes on Home Assistant at /config/custom_sentences/en/hub_alarms.yaml.
+# What each intent does is in packages/hub_alarms.yaml (intent_script).
+#
+# Home Assistant matches these itself, on the mini PC, before anything is sent to
+# Claude, so alarms work with no internet.
+#
+# The time is a "wildcard": whatever words stand where {when} is are handed to
+# the script hub_alarm_parse_time, which works out the time. That is deliberate.
+# Speech-to-text writes times in many ways ("3:10 PM", "3:10pm", "3.10 p.m.",
+# "310 PM", "three ten in the afternoon") and a list of exact forms missed some
+# of them, which sent the sentence to Claude instead. If the words are not a
+# time, the hub says it did not catch the time.
+#
+# tests/test_alarm_sentences.py checks these phrases. Run pytest after any change.
+
+language: "en"
+
+intents:
+  HubSetAlarm:
+    data:
+      - sentences:
+          - "<polite>(set|create|add|make|start|schedule) [me] [an|a|the|my|another] alarm (for|at|to) {when}"
+          - "<polite>(set|create|add|make|start|schedule) [me] (an|a|another) {when} alarm"
+          - "<polite>wake me [up] at {when}"
+
+  HubCancelAlarm:
+    data:
+      # No time given: cancels the alarm if there is only one, and stops an
+      # alarm that is ringing.
+      - sentences:
+          - "<polite><cancel> [my|the|that] alarm"
+          - "<polite>stop [my|the|that] alarm"
+      # A time given: cancels the alarm set for that time.
+      - sentences:
+          - "<polite><cancel> [my|the] alarm (for|at) {when}"
+          - "<polite><cancel> [my|the] {when} alarm"
+
+  HubCancelAllAlarms:
+    data:
+      - sentences:
+          - "<polite><cancel> (all|every) [of] [my|the] (alarms|alarm)"
+          - "<polite><cancel> [my|the] alarms"
+
+  HubQueryAlarm:
+    data:
+      - sentences:
+          - "(when is|when's|what time is|what's) [my|the] [next] alarm [set] [for]"
+          - "(what|which) alarms (are set|do i have [set]|have i [got] set)"
+          - "(do i have|are there|have i got) (any|an) (alarms|alarm) [set]"
+          - "(list|tell me|read [me]) [my|the] alarms"
+
+lists:
+  # The words said for the time, taken as they are.
+  when:
+    wildcard: true
+
+expansion_rules:
+  polite: "[please |can you |could you |will you ]"
+  cancel: "(cancel|delete|remove|turn off|clear)"
