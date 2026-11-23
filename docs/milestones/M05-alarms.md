@@ -18,7 +18,8 @@ Will's results on November 23rd, 2026:
 - **Will asked to set and change alarms from the app.** The slots became a time of day instead of a
   date and time, and an Alarms dashboard was added.
 
-None of the three fixes has been tried on the live instance yet. The firmware is unchanged at 0.6.0.
+Later on November 23rd, with the renamed files, the new phrases and the dashboard installed, Will
+reports that all tests pass. The firmware is unchanged at 0.6.0. Still to do: the `sat-hub-v6` tag.
 
 ## What was built
 **Home Assistant side** (new folder `homeassistant/`):
