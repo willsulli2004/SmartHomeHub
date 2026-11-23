@@ -47,6 +47,20 @@ light:
     default_transition_length: 0s
     restore_mode: ALWAYS_OFF
 
+interval:
+  # Safety net: re-send the current LED frame once a second.
+  #
+  # Seen on the hardware (firmware 0.3.1): after a spoken reply the LED output
+  # sometimes gets stuck. The ring then freezes on its last colour, and the
+  # microphone stops delivering audio, so the wake word goes deaf. Sending any
+  # new LED frame clears both at once. This driver refills its signal buffer
+  # from an interrupt every 4 LEDs; if that interrupt is delayed while the audio
+  # output is being shut down, the frame never ends properly. Re-sending the
+  # frame restarts the output, so a stuck state now lasts at most one second.
+  - interval: 1s
+    then:
+      - lambda: static_cast<light::AddressableLight *>(id(status_light).get_output())->schedule_show();
+
 script:
   - id: status_light_listening
     mode: restart

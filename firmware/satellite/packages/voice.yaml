@@ -67,6 +67,8 @@ voice_assistant:
           not:
             voice_assistant.is_running:
         timeout: 30s
+    # Let the audio output finish shutting down before sending the LED frame.
+    - delay: 500ms
     - script.execute: status_light_idle
   on_error:
     - script.execute: status_light_idle

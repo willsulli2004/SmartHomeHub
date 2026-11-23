@@ -18,7 +18,7 @@ substitutions:
   friendly_name: Satellite Hub
   # Shown in Home Assistant on the device page as "Firmware". Bump it for every
   # build that gets flashed, so the running build can be identified.
-  firmware_version: "0.3.1"
+  firmware_version: "0.3.2"
 
 esphome:
   name: ${name}
