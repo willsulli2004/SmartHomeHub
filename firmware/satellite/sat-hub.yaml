@@ -2,10 +2,12 @@
 #
 # This file holds the board, network and update settings. Everything else lives in
 # packages/, one file per function:
-#   packages/audio.yaml     mic, DAC/amp output, media player, speaker level cap
+#   packages/audio.yaml     mic, DAC/amp output, amp mute, media player, speaker level cap
 #   packages/voice.yaml     "Hey Jarvis" wake word and the voice assistant
-#   packages/controls.yaml  mute button
-#   packages/leds.yaml      status colours on the LED ring
+#   packages/controls.yaml  mute button and volume knob
+#   packages/leds.yaml      status colours and volume display on the LED ring
+#
+# The project's own C++ components live in components/ (see external_components).
 #
 # Build:  esphome compile firmware/satellite/sat-hub.yaml
 # Flash:  see docs/setup/deploy.md
@@ -18,7 +20,7 @@ substitutions:
   friendly_name: Satellite Hub
   # Shown in Home Assistant on the device page as "Firmware". Bump it for every
   # build that gets flashed, so the running build can be identified.
-  firmware_version: "0.3.6"
+  firmware_version: "0.4.0"
 
 esphome:
   name: ${name}
@@ -72,6 +74,12 @@ wifi:
 
 # Lets a phone on the recovery hotspot enter new Wi-Fi details.
 captive_portal:
+
+# The project's own components, in firmware/satellite/components/.
+external_components:
+  - source:
+      type: local
+      path: components
 
 packages:
   audio: !include packages/audio.yaml
