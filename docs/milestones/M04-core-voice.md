@@ -1,5 +1,5 @@
 # M04 — Core voice
-Status: in review   Branch: `milestone/M04-core-voice`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/6
+Status: merged   Branch: `milestone/M04-core-voice`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/6
 
 ## Goal
 The everyday assistant basics work by voice: device commands, timers and general questions. Device

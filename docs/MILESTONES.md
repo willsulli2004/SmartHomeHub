@@ -12,8 +12,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | M1 | Home Assistant on Proxmox | Nov 21 | merged |
 | M2 | ESPHome satellite base | Nov 23 | merged |
 | M3 | Satellite controls and feedback | Nov 24 | merged |
-| M4 | Core voice | Nov 25 | in review |
-| M5 | Alarms | Nov 27 | planned |
+| M4 | Core voice | Nov 25 | merged |
+| M5 | Alarms | Nov 27 | in review |
 | M6 | Robot link and local server | Nov 29 | planned |
 | M7 | Demo hardening and report | Dec 1 | planned |
 
@@ -106,17 +106,20 @@ extras and M6's analytics before cutting alarms or the robot link.
 ### M5 — Alarms
 **Goal:** the CpE417 alarm feature on the hub side.
 - **Alarm data:** stored in Home Assistant (helpers), so both voice and the dashboard (M6) can set them.
+  Five alarm slots; each alarm fires once.
 - **Voice commands:** "set an alarm for 7 AM", "cancel my alarm", "when is my alarm".
+- **Settings in the app:** ringing volumes, colours and timeouts for timers and alarms are Home
+  Assistant entities, not firmware values.
 - **When an alarm fires:**
   - it rings on the satellite (loud, repeating, within the cap) with the LED alarm state
   - it publishes `hub/alarm/start` with an `alarm_id`
-- **Stopping:** by knob press, by voice, by `alarmbot/caught`, or by a timeout. Every stop publishes
-  `hub/alarm/stop` with the reason.
+- **Stopping:** by turning the knob, by voice, by `alarmbot/caught`, or by a timeout. Every stop
+  publishes `hub/alarm/stop` with the reason.
 - **Robot-independent:** the alarm works the same when the robot is offline.
 - **Known risk:** the wake word may not hear "stop" over a loud alarm without echo cancellation, so the
   knob press is the guaranteed stop.
-  **Open (found in M2):** the knob cannot be pressed in the current enclosure, so M5 needs a
-  different guaranteed stop. Candidates: turning the knob, or the mute button. Decide when planning M5.
+  **Decided in M5:** the knob cannot be pressed in the current enclosure, so turning it either way
+  is the guaranteed stop. The mute button does not stop an alarm.
 - **Done when:** an alarm set by voice fires on time, every stop path works, and the MQTT messages appear
   on the broker.
 
@@ -225,6 +228,9 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 - Web search for Claude's answers: a switch in Home Assistant's Anthropic integration, left off in M4
   (see section 13.4 of the Home Assistant setup guide)
 - A countdown on the LED ring while a timer runs
+- More settings in the app: the other status colours (listening, thinking, speaking), the silence
+  between ring repeats, and a choice of ring sound
+- Snooze, repeating alarms, and more than five alarms
 - Custom wake word (train a model for the hub's own name)
 - Automatic deploy on merge via the mini PC over Tailscale
 - Echo cancellation and ducking

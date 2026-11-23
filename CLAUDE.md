@@ -101,6 +101,9 @@ an explicit test checklist.
   edit the real `secrets.yaml`.
 - **OTA command for Will:** `esphome run firmware/satellite/sat-hub.yaml --device sat-hub.local`.
   Use the satellite's IP address if mDNS fails.
+- **Home Assistant config:** `.\.venv\Scripts\python.exe -m pytest homeassistant` checks the custom
+  sentences (with `hassil`, Home Assistant's own matcher) and the template logic. It cannot check that
+  the live instance loads a package; Will runs "Check configuration" after copying.
 - **Python:** `pytest` for every service and plugin. Logic must be testable without hardware: mock MQTT,
   fake HA responses, the mock robot. Jarvis Core gets a text console (Phase B) so conversations can be
   tested by typing.
@@ -198,6 +201,11 @@ LED supply first; a diode in the LED power lead or a level shifter on the data w
   `.env` or config files.
 - **Home Assistant config:** kept in `homeassistant/` as packages (helpers, scripts, automations, custom
   sentences, dashboards) so it's versioned. Each milestone doc says how to apply it to the live instance.
+- **Tunable settings live in the app:** anything Will might want to tune (LED colours, timer and alarm
+  volumes, timeouts and the like) is a Home Assistant entity with a sensible default, not a value
+  hard-coded in firmware: a `number` or colour-picker `light` on the satellite, or a helper in
+  `homeassistant/`. Safety limits stay hard-coded: the speaker cap, the LED current cap and the GPIO
+  rules.
 - **Complete files only:** never leave "paste X here" placeholders.
 
 ## Repo layout
@@ -206,8 +214,9 @@ LED supply first; a diode in the LED power lead or a level shifter on the data w
     docs/milestones/              one doc per completed milestone
     docs/setup/                   setup guides (Home Assistant, Proxmox, ...)
     docs/robot-integration.md     robot setup guide + MQTT contract (M6)
-    firmware/satellite/           ESPHome config, packages/, components/, secrets.example.yaml
-    homeassistant/                HA packages, custom sentences, dashboards
+    firmware/satellite/           ESPHome config, packages/, components/, includes/ (small C++
+                                  helpers), sounds/, secrets.example.yaml
+    homeassistant/                HA packages, custom sentences, dashboards, tests/
     services/alarm-analytics/     robot telemetry processing (M6)
     jarvis-core/                  conversation agent + plugin platform (Phase B)
     tools/mock-robot/             mock robot for testing the hub side (M6)
