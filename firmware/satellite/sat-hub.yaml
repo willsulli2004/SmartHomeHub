@@ -5,7 +5,7 @@
 #   packages/audio.yaml     mic, DAC/amp output, media player, speaker level cap
 #   packages/voice.yaml     "Hey Jarvis" wake word and the voice assistant
 #   packages/controls.yaml  mute button
-#   packages/leds.yaml      status colours on the LED strip
+#   packages/leds.yaml      status colours on the LED ring
 #
 # Build:  esphome compile firmware/satellite/sat-hub.yaml
 # Flash:  see docs/setup/deploy.md
@@ -18,7 +18,7 @@ substitutions:
   friendly_name: Satellite Hub
   # Shown in Home Assistant on the device page as "Firmware". Bump it for every
   # build that gets flashed, so the running build can be identified.
-  firmware_version: "0.3.0"
+  firmware_version: "0.3.1"
 
 esphome:
   name: ${name}
@@ -50,13 +50,7 @@ psram:
 # the port used for the first flash. After that, logs are read over Wi-Fi.
 logger:
   hardware_uart: USB_SERIAL_JTAG
-  # TEMPORARY (M2 debugging): verbose logging for the LED strip only.
-  # Restore to "level: DEBUG" with no initial_level or logs before merging.
-  level: VERBOSE
-  initial_level: DEBUG
-  logs:
-    light: VERBOSE
-    esp32_rmt_led_strip: VERBOSE
+  level: DEBUG
 
 # Encrypted connection to Home Assistant.
 api:

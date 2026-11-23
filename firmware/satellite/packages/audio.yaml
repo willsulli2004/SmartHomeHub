@@ -24,11 +24,8 @@ substitutions:
 
 i2s_audio:
   # ICS-43434 microphone.
-  # BCLK is on GPIO43, which is also the chip's UART0 TX pin. That is fine as long
-  # as logging stays on USB (see logger in sat-hub.yaml); the boot ROM prints a few
-  # lines on it at power-up, which the microphone ignores.
   - id: i2s_mic_bus
-    i2s_bclk_pin: GPIO43
+    i2s_bclk_pin: GPIO42
     i2s_lrclk_pin: GPIO1
   # PCM5102 DAC -> MAX9744 amp (analog volume mode, left input).
   - id: i2s_spk_bus
@@ -74,8 +71,8 @@ script:
   # Lowers the drive strength of the three DAC signal pins from the default
   # (about 20 mA) to the weakest setting (about 5 mA). Weaker drive means slower
   # signal edges, and slower edges couple far less interference into neighbouring
-  # wires. The LED strip's data wire (GPIO41) sits right beside these pins, and the
-  # strip froze on its last colour every time the speaker played (0.2.6 - 0.2.10).
+  # wires. The LED data wire (GPIO41) sits right beside these pins, and in the
+  # first build the LED strip froze on its last colour whenever the speaker played.
   # 5 mA is ample for the short wires to the DAC.
   - id: soften_dac_signals
     mode: restart
