@@ -86,7 +86,8 @@ extras and M6's analytics before cutting alarms or the robot link.
   delivers rotation only. The press comes back when the enclosure is changed.
 - **HA entities:** volume, mute state and LED brightness exposed in Home Assistant.
 - **Sounds:** short feedback tones for volume changes and mute on/off.
-- **Optional:** amp MUTE on GPIO4, only if Will's measurement clears it.
+- **Amp MUTE on GPIO4:** cleared by Will's measurement. The firmware is in M3; the wire is fitted when
+  the enclosure is finished.
 - **Done when:** every state shows correctly, the knob and HA volume stay in sync, and the cap holds at
   100%.
 
@@ -214,6 +215,13 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 ## Backlog
 - Demo mode: the satellite opens its own hotspot and serves a simple web page for showing off features
   from a phone, without the home network (asked for during M2; a candidate for M7 if time allows)
+- Cut from M3 to protect the December 1st deadline:
+  - feedback tones for volume changes and mute
+  - the encoder's own status light
+  - LED brightness control in Home Assistant
+  - the encoder press (needs a new enclosure)
+  - removing and testing the three unproven M2 measures (LED frame re-send, 500 ms ring delay,
+    lowered DAC pin drive)
 - Custom wake word (train a model for the hub's own name)
 - Automatic deploy on merge via the mini PC over Tailscale
 - Echo cancellation and ducking
