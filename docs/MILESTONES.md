@@ -82,6 +82,8 @@ extras and M6's analytics before cutting alarms or the robot link.
   capped for the strip's current budget.
 - **Encoder:** a custom ESPHome external component (C++) for the seesaw. Rotation changes volume by 2%
   per click, and the press stops a timer/alarm or the current response. The encoder's pixel shows status.
+  **Enclosure limit (found in M2):** the current enclosure gives no way to press the knob, so M3
+  delivers rotation only. The press comes back when the enclosure is changed.
 - **HA entities:** volume, mute state and LED brightness exposed in Home Assistant.
 - **Sounds:** short feedback tones for volume changes and mute on/off.
 - **Optional:** amp MUTE on GPIO4, only if Will's measurement clears it.
@@ -112,6 +114,8 @@ extras and M6's analytics before cutting alarms or the robot link.
 - **Robot-independent:** the alarm works the same when the robot is offline.
 - **Known risk:** the wake word may not hear "stop" over a loud alarm without echo cancellation, so the
   knob press is the guaranteed stop.
+  **Open (found in M2):** the knob cannot be pressed in the current enclosure, so M5 needs a
+  different guaranteed stop. Candidates: turning the knob, or the mute button. Decide when planning M5.
 - **Done when:** an alarm set by voice fires on time, every stop path works, and the MQTT messages appear
   on the broker.
 

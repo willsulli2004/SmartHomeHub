@@ -134,7 +134,8 @@ an explicit test checklist.
 - **MAX9744 MUTE:** not connected. It is planned on GPIO4 (free since the camera was dropped), open-drain
   only, after Will measures that MUTE idles at 3.6V or less. Do not drive it until Will confirms.
 - **LED ring current:** the 24-LED WS2812 ring is on its own buck with a ~1.2A budget. 24 LEDs at full
-  white would draw ~1.44A, so cap brightness in software.
+  white would draw ~1.44A, so cap brightness in software. The firmware caps every channel at 80%
+  (worst case 1.15A).
 - **GPIO48:** the devkit's onboard RGB LED.
 - **Pins never to use:**
   - GPIO33–37: used by the OPI PSRAM.
@@ -156,9 +157,17 @@ The pin map above is the rebuilt hub (new ESP32, November 22nd, 2026). The first
 WS 40, DOUT 38 and a 71-LED WS2812B strip.
 
 Proven in the Arduino tests:
-- **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gives good far-field pickup. Reproduce the
-  equivalent in ESPHome and verify it.
+- **Mic:** +30 dB digital gain (shift 11 from the 32-bit slot) gave good far-field pickup in open air.
 - **Encoder:** 2% volume per click.
+
+Learned in M2 on the assembled hub (details in `docs/milestones/M02-esphome-satellite-base.md`):
+- **Mic gain:** the Arduino value clips in the assembled hub and makes the wake word unreliable. ESPHome
+  uses `mic_gain_factor: 4` (+12 dB). Tune it with the Mic Peak sensor: speech should peak between about
+  −20 and −6 dB and never reach 0.
+- **LED ring:** it needs the Adafruit NeoPixel bit timings (400/850/800/450 ns, 300 µs reset), not
+  ESPHome's built-in WS2812 timings, and the firmware must always drive the data line.
+- **Encoder press:** the current enclosure gives no way to press the knob. Only rotation is usable until
+  the enclosure is changed, so nothing may depend on the press.
 
 Board: ESP32-S3-DevKitC-1 N16R8 clone, 16MB flash, 8MB octal PSRAM. Hostname `sat-hub`.
 
