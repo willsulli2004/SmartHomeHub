@@ -64,10 +64,12 @@ voice_assistant:
     # Re-apply before every reply, in case setting up the audio output resets it.
     - script.execute: soften_dac_signals
   on_stt_end:
-    - script.execute: status_light_busy
+    - script.execute: status_light_thinking
+  on_tts_start:
+    - script.execute: status_light_speaking
   on_end:
     # "End" fires when Home Assistant finishes its part, which is before the
-    # reply has been spoken. Wait for the reply to finish playing so the strip
+    # reply has been spoken. Wait for the reply to finish playing so the ring
     # stays green while the satellite talks. (Turning it off straight away also
     # sent two LED frames 4 ms apart.)
     - wait_until:
@@ -79,7 +81,7 @@ voice_assistant:
     - delay: 500ms
     - script.execute: status_light_idle
   on_error:
-    - script.execute: status_light_idle
+    - script.execute: status_light_error
 
 sensor:
   # Microphone level as the wake word engine hears it (same gain applied), shown
