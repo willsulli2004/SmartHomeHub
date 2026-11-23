@@ -5,6 +5,20 @@ Status: in review   Branch: `milestone/M04-core-voice`   PR: https://github.com/
 The everyday assistant basics work by voice: device commands, timers and general questions. Device
 commands and timers stay on the home network; only the text of a question goes to Claude.
 
+## Where it stands
+Will's results on November 23rd, 2026, on firmware 0.5.0: test 3 (a general question) first failed
+with "Sorry, I couldn't understand that", typed as well as spoken. Jewel had no Claude agent to
+choose, because the Anthropic integration's conversation agent was not yet set up. Once it was, Will
+reported that the tests pass. Which of the two cases in section 13.4 it was, and whether the lights
+answer with the internet unplugged (test 14), were not reported.
+
+Will then asked for two changes, built as firmware 0.5.1:
+- the ringing light is three purple LEDs circling the ring instead of a pulse
+- the prompt asks Claude for shorter answers
+
+Still to do: flash 0.5.1 and check tests 1, 6 and 12 again, the one-day soak, and the `sat-hub-v5`
+tag.
+
 ## What was built
 - `firmware/satellite/packages/alarm.yaml` — new. The ringing logic: `ring_start` and `ring_stop`,
   the repeat loop, the ringing volume range, and the five-minute give-up. Timers use it now; M5 alarms
@@ -14,14 +28,14 @@ commands and timers stay on the home network; only the text of a question goes t
   stops the ringing and does not start a conversation.
 - `firmware/satellite/packages/controls.yaml` — changed. While the hub rings, a knob turn either way
   stops the ringing and leaves the volume alone.
-- `firmware/satellite/packages/leds.yaml` — changed. A purple pulsing state for ringing, which wins
-  over every other state including mute.
+- `firmware/satellite/packages/leds.yaml` — changed. A ringing state, three purple LEDs circling the
+  ring, which wins over every other state including mute.
 - `firmware/satellite/packages/audio.yaml` — changed. The ring sound is built into the media player.
   A stale comment about the amp MUTE wire was corrected.
 - `firmware/satellite/sounds/timer_ring.wav` — new. The default ring: four short beeps, 0.63 seconds.
 - `firmware/satellite/sounds/make_ring.py` — new. Generates that file with standard-library Python.
 - `firmware/satellite/sounds/README.md` — new. How to swap in your own ring sound.
-- `firmware/satellite/sat-hub.yaml` — changed. Loads `alarm.yaml`; version 0.5.0.
+- `firmware/satellite/sat-hub.yaml` — changed. Loads `alarm.yaml`; version 0.5.1.
 - `docs/setup/home-assistant.md` — changed. New section 13: exposing devices, timer phrases, the
   Claude API key, the Anthropic integration, the prompt, and the pipeline setting.
 - `docs/MILESTONES.md` — M3 set to `merged`, M4 to `in review`, web search added to the backlog.
@@ -45,7 +59,7 @@ to answer questions only: it is not given the device list and cannot control any
 2. The current volume is remembered. The ring plays at that volume if it is between 25% and 50%; a
    lower volume is raised to 25% and a higher one lowered to 50%. Home Assistant's slider shows the
    ringing volume while it rings.
-3. The "stop" word is switched on, the ring turns pulsing purple, and the sound repeats with 1.2
+3. The "stop" word is switched on, three purple LEDs start circling the ring, and the sound repeats with 1.2
    seconds of silence between repeats. The silence is when the hub can hear you, because there is no
    echo cancellation.
 4. `ring_stop` runs on the first of: "stop", "Hey Jarvis", a knob turn, or five minutes. It stops the
@@ -72,8 +86,8 @@ The ring plays through the media player as an announcement, like a spoken reply,
 the cap, which holds for any file at any volume.
 
 ### LED ring current
-The ringing colour is red 60% and blue 100% on 24 LEDs. At the 80% cap that is at most
-24 × 32 mA × 0.8 = 0.61 A, inside the 1.2 A budget.
+The ringing effect lights three LEDs at a time: a deep purple leading LED and two lighter, fainter
+ones behind it. That is about 55 mA at the 80% cap, far inside the 1.2 A budget.
 
 ## How it connects to the rest of the project
 - **Uses M1:** the `Jewel` pipeline, Whisper and Piper. Only the conversation agent changes.
@@ -117,7 +131,7 @@ restore the `before-M04` backup.
 Claude cannot hear the speaker, see the ring or turn the knob. Pass criteria are in bold. Every
 spoken line starts with "Hey Jarvis".
 
-**1. Boot.** **Pass: Firmware reads `0.5.0 (ESPHome 2026.11.0)`, and "what time is it?" still gets a
+**1. Boot.** **Pass: Firmware reads `0.5.1 (ESPHome 2026.11.0)`, and "what time is it?" still gets a
 spoken answer.**
 
 **2. Device command.** "Turn on the desk lights" (use your light's name), then "turn them off".
@@ -133,7 +147,8 @@ green while a one or two sentence answer is spoken.** This is the first time amb
 mark.**
 
 **6. Ring.** "Set a timer for ten seconds." **Pass: when it ends, the hub beeps four times, pauses,
-and repeats, and the ring pulses purple.**
+and repeats, and three purple LEDs circle the ring: a deep purple one in front with two lighter ones
+trailing.** Note which way it turns; the direction is one small change in `leds.yaml`.
 
 **7. Stop by knob.** While it rings, turn the knob one click either way. **Pass: the ringing stops
 at once, the ring goes off, and the Media Player volume in Home Assistant is what it was before the
@@ -181,7 +196,7 @@ the ring never freezes and the wake word never goes deaf.**
 Checks Claude ran, using a temporary copy with the example secrets (the real `secrets.yaml` was never
 opened):
 - `esphome config`: valid.
-- `esphome compile`: passes for 0.5.0. Flash use is 18.6% (1.51 MB of the 8.1 MB app space), RAM
+- `esphome compile`: passes for 0.5.0 and 0.5.1. Flash use is 18.6% (1.51 MB of the 8.1 MB app space), RAM
   39.4%.
 - `make_ring.py` runs and writes a 0.63-second, 60 kB WAV.
 - Not run: anything on the hardware or in Home Assistant. Ringing, the "stop" word, the volume range
@@ -199,6 +214,10 @@ opened):
   `homeassistant/` package was needed.
 - **Web search is off,** with the switch documented in section 13.4 so it can be tried later (Will's
   decision).
+
+- **The ringing light circles instead of pulsing,** and its purple is deeper (Will's request after
+  testing 0.5.0).
+- **The prompt was tightened** to one short sentence, two at most, under 30 words (Will's request).
 
 ## Known limitations / follow-ups
 - **"Stop" and "Hey Jarvis" may not be heard over the beeps.** There is no echo cancellation. The
@@ -218,5 +237,7 @@ opened):
   cleanly, that is a fix for this branch.
 - **Replies longer than 30 seconds** would turn the ring off before the speech ends (the M2 wait
   limit). The prompt keeps answers short.
+- **The circling light has not been seen by Claude.** Its colours, speed and direction are a first
+  guess from Will's description.
 - **The ring sound has not been heard by Claude.** Its pitch and rhythm are a first guess; see
   `sounds/README.md` to change it.

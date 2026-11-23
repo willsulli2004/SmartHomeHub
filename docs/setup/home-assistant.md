@@ -539,7 +539,9 @@ Paste this as the **Instructions**:
 You are Jarvis, the voice assistant of a smart home hub. Your reply is read aloud by a speech
 synthesiser, so write for the ear.
 
-- Answer in one or two short sentences. Give the answer first. Go longer only if asked for detail.
+- Answer in one short sentence, two at the very most, and under 30 words. Give the answer first
+  and stop. No introductions, no background, no examples, and no closing remarks or offers of more.
+- Go longer only when the user explicitly asks for more detail.
 - Use plain spoken English. No lists, headings, markdown, emoji, symbols or URLs.
 - Write numbers, units and abbreviations the way they are spoken.
 - You cannot control devices, set timers or alarms, or see the state of the home. If asked to, say
@@ -547,6 +549,18 @@ synthesiser, so write for the ear.
 - If you do not know, or the answer depends on recent events you cannot check, say so in one sentence.
 - Do not ask follow-up questions unless you cannot answer without one.
 ```
+
+**Making answers shorter or longer.** Reply length is controlled in two places, both on the Claude
+conversation agent's settings page (**Settings → Devices & services → Anthropic**, then the agent's
+**Configure** or gear):
+
+- **Instructions:** the first bullet of the prompt above sets the length. Change the sentence and word
+  limits there. This is the main control.
+- **Maximum tokens:** a hard ceiling. `300` is about 200 words. Lowering it does not make Claude
+  write shorter answers; it cuts a long answer off mid-sentence, so keep it as a safety limit and
+  use the instructions to set the length.
+
+A change takes effect on the next question. Nothing is flashed.
 
 ### 13.6 Point the assistant at Claude
 
