@@ -72,3 +72,25 @@ voice_assistant:
     - script.execute: status_light_idle
   on_error:
     - script.execute: status_light_idle
+
+sensor:
+  # Microphone level as the wake word engine hears it (same gain applied), shown
+  # in Home Assistant under Diagnostic. Used to tune mic_gain_factor and to see
+  # how much noise the enclosure adds. Readings are in dB relative to full scale:
+  # 0 dB is the loudest the microphone path can represent, so a peak sitting at or
+  # near 0 dB means the signal is clipping. It only measures while something else
+  # (the wake word engine) already has the microphone running.
+  - platform: sound_level
+    id: mic_level
+    microphone:
+      microphone: sat_mic
+      channels: 0
+      gain_factor: ${mic_gain_factor}
+    passive: true
+    measurement_duration: 1000ms
+    peak:
+      name: Mic Peak
+      entity_category: diagnostic
+    rms:
+      name: Mic Level
+      entity_category: diagnostic
