@@ -216,6 +216,7 @@ LED supply first; a diode in the LED power lead or a level shifter on the data w
     docs/robot-integration.md     robot setup guide + MQTT contract (M6)
     firmware/satellite/           ESPHome config, packages/, components/, includes/ (small C++
                                   helpers), sounds/, secrets.example.yaml
+    hardware/enclosure/           STEP files for the 3D printed enclosure
     homeassistant/                HA packages, custom sentences, dashboards, tests/
     services/alarm-analytics/     robot telemetry processing (M6)
     jarvis-core/                  conversation agent + plugin platform (Phase B)
