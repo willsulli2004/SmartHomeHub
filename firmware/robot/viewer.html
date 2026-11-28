@@ -1,0 +1,235 @@
+<!doctype html>
+<!--
+  The alarm robot's LiDAR viewer. Served by viewer.py (`robot.py view`); it is not
+  meant to be opened as a file. Everything is in this one page: no libraries and
+  nothing loaded from the internet.
+
+  Each scan from the robot is 72 distances, one per 5-degree slice, slice 0 straight
+  ahead and going clockwise, with the robot's own estimate of where it is.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AlarmBot LiDAR</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #14161a; color: #dfe3ea; display: flex; height: 100vh; }
+  #stage { flex: 1; min-width: 0; position: relative; }
+  canvas { width: 100%; height: 100%; display: block; }
+  #side { width: 320px; padding: 14px; box-sizing: border-box; background: #1b1e24; overflow-y: auto; border-left: 1px solid #2c313a; }
+  h1 { font-size: 16px; margin: 0 0 10px; }
+  h2 { font-size: 12px; margin: 16px 0 6px; color: #8d96a5; text-transform: uppercase; letter-spacing: .06em; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 2px 0; }
+  td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  button { background: #2a2f38; color: inherit; border: 1px solid #3a414d; border-radius: 6px; padding: 6px 10px; margin: 0 6px 6px 0; cursor: pointer; font: inherit; }
+  button:hover { background: #343a45; }
+  button.on { background: #2f5d8a; border-color: #3f7ab3; }
+  button.warn { border-color: #a8623a; }
+  #log { font: 11px/1.35 ui-monospace, Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: #9aa3b2; max-height: 220px; overflow-y: auto; background: #14161a; padding: 6px; border-radius: 6px; }
+  #note { position: absolute; left: 12px; top: 10px; color: #8d96a5; }
+  .bad { color: #ef8a6b; } .good { color: #7fd18b; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas><div id="note">Waiting for scans. Press "LiDAR on".</div></div>
+<div id="side">
+  <h1>AlarmBot LiDAR</h1>
+  <div>
+    <button id="scanOn">LiDAR on</button><button id="scanOff">LiDAR off</button>
+    <button id="stop">Stop</button><button id="start" class="warn">Start chase</button>
+  </div>
+  <h2>View</h2>
+  <div>
+    <button id="viewRobot" class="on">Robot</button><button id="viewRoom">Room</button>
+    <button id="r2">2 m</button><button id="r4" class="on">4 m</button><button id="r8">8 m</button>
+    <button id="clear">Clear map</button>
+  </div>
+  <h2>Robot</h2>
+  <table>
+    <tr><td>Connection</td><td id="online">?</td></tr>
+    <tr><td>State</td><td id="state">?</td></tr>
+    <tr><td>Battery</td><td id="battery">?</td></tr>
+    <tr><td>Tilt</td><td id="tilt">?</td></tr>
+    <tr><td>Scans received</td><td id="count">0</td></tr>
+  </table>
+  <h2>Nearest thing</h2>
+  <table>
+    <tr><td>Distance</td><td id="nearDist">?</td></tr>
+    <tr><td>Direction</td><td id="nearDir">?</td></tr>
+  </table>
+  <h2>Position (from the start)</h2>
+  <table>
+    <tr><td>Right / ahead</td><td id="pos">?</td></tr>
+    <tr><td>Facing</td><td id="heading">?</td></tr>
+    <tr><td>Distance from start</td><td id="fromStart">?</td></tr>
+  </table>
+  <h2>Robot's log</h2>
+  <div id="log"></div>
+</div>
+<script>
+"use strict";
+const SLICES = 72, SLICE_DEG = 360 / SLICES;
+const canvas = document.getElementById("c"), ctx = canvas.getContext("2d");
+const $ = id => document.getElementById(id);
+
+let view = "robot";        // "robot": robot in the middle, facing up. "room": fixed room, robot moves.
+let rangeM = 4;            // metres from the centre to the edge of the picture
+let scan = null;           // the latest scan message
+let scans = 0;
+let trail = [];            // where the robot has been: {x, y}
+let map = [];              // points seen, in room coordinates: {x, y, t}
+const MAP_LIMIT = 6000;
+
+function sideName(bearing) {           // bearing: 0 ahead, clockwise, 0..360
+  const b = ((bearing % 360) + 360) % 360;
+  if (b < 45 || b >= 315) return "front";
+  if (b < 135) return "right";
+  if (b < 225) return "back";
+  return "left";
+}
+
+function resize() {
+  const r = canvas.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  canvas.width = r.width * d; canvas.height = r.height * d;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+  draw();
+}
+window.addEventListener("resize", resize);
+
+function draw() {
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const cx = w / 2, cy = h / 2, scale = Math.min(w, h) / 2 / rangeM * 0.94;   // pixels per metre
+  ctx.clearRect(0, 0, w, h);
+
+  // Range rings every half metre (every metre when zoomed out).
+  const step = rangeM > 4 ? 1 : 0.5;
+  ctx.lineWidth = 1; ctx.font = "11px system-ui"; ctx.textAlign = "left";
+  for (let r = step; r <= rangeM + 1e-6; r += step) {
+    ctx.strokeStyle = Math.abs(r - Math.round(r)) < 1e-6 ? "#333a45" : "#252a32";
+    ctx.beginPath(); ctx.arc(cx, cy, r * scale, 0, Math.PI * 2); ctx.stroke();
+    if (Math.abs(r - Math.round(r)) < 1e-6) { ctx.fillStyle = "#5f6876"; ctx.fillText(r + " m", cx + 4, cy - r * scale - 3); }
+  }
+  ctx.strokeStyle = "#252a32";
+  ctx.beginPath(); ctx.moveTo(cx - rangeM * scale, cy); ctx.lineTo(cx + rangeM * scale, cy);
+  ctx.moveTo(cx, cy - rangeM * scale); ctx.lineTo(cx, cy + rangeM * scale); ctx.stroke();
+
+  if (!scan) return;
+  const rx = scan.x || 0, ry = scan.y || 0, heading = (scan.h || 0) * Math.PI / 180;
+
+  // Where a point at `dist` metres on `bearing` degrees from the robot lands on screen.
+  function place(bearingDeg, dist) {
+    const b = bearingDeg * Math.PI / 180;
+    if (view === "robot") return [cx + dist * Math.sin(b) * scale, cy - dist * Math.cos(b) * scale];
+    const wx = rx + dist * Math.sin(heading + b), wy = ry + dist * Math.cos(heading + b);
+    return [cx + wx * scale, cy - wy * scale];
+  }
+
+  if (view === "room") {
+    // Everything seen so far, older points fainter.
+    const now = Date.now();
+    for (const p of map) {
+      const age = (now - p.t) / 1000;
+      ctx.fillStyle = `rgba(120,150,190,${Math.max(0.12, 0.6 - age / 60)})`;
+      ctx.fillRect(cx + p.x * scale - 1, cy - p.y * scale - 1, 2, 2);
+    }
+    // The trail and the starting point.
+    ctx.strokeStyle = "#c9a54a"; ctx.lineWidth = 1.5; ctx.beginPath();
+    trail.forEach((p, i) => { const X = cx + p.x * scale, Y = cy - p.y * scale; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+    ctx.stroke();
+    ctx.fillStyle = "#c9a54a"; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillText("start", cx + 8, cy + 14);
+  } else {
+    ctx.fillStyle = "#6f7887"; ctx.textAlign = "center"; ctx.font = "12px system-ui";
+    ctx.fillText("FRONT", cx, cy - rangeM * scale + 14);
+    ctx.fillText("BACK", cx, cy + rangeM * scale - 6);
+    ctx.textAlign = "left"; ctx.fillText("RIGHT", cx + rangeM * scale - 44, cy - 6);
+    ctx.fillText("LEFT", cx - rangeM * scale + 6, cy - 6);
+  }
+
+  // This scan: a dot per slice, joined where neighbours are close together.
+  let nearest = null;
+  ctx.fillStyle = "#6fd3ff";
+  for (let i = 0; i < SLICES; i++) {
+    const cm = scan.d[i];
+    if (!cm) continue;
+    const dist = cm / 100, [X, Y] = place(i * SLICE_DEG, dist);
+    ctx.beginPath(); ctx.arc(X, Y, 3, 0, Math.PI * 2); ctx.fill();
+    if (!nearest || dist < nearest.dist) nearest = { dist, bearing: i * SLICE_DEG, X, Y };
+  }
+  if (nearest) {
+    ctx.strokeStyle = "#ffcf5c"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(nearest.X, nearest.Y, 8, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // The robot: a triangle pointing the way it faces.
+  const [bx, by] = view === "robot" ? [cx, cy] : [cx + rx * scale, cy - ry * scale];
+  const a = view === "robot" ? 0 : heading;
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(a);
+  ctx.fillStyle = "#7fd18b"; ctx.beginPath(); ctx.moveTo(0, -13); ctx.lineTo(9, 10); ctx.lineTo(-9, 10); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  $("nearDist").textContent = nearest ? nearest.dist.toFixed(2) + " m" : "nothing seen";
+  $("nearDir").textContent = nearest ? Math.round(nearest.bearing) + "° (" + sideName(nearest.bearing) + ")" : "-";
+}
+
+function onScan(s) {
+  if (!s || !Array.isArray(s.d) || s.d.length !== SLICES) return;
+  scan = s; scans++;
+  $("note").style.display = "none";
+  $("count").textContent = scans;
+  $("state").textContent = s.s || "?";
+  const x = s.x || 0, y = s.y || 0, heading = (s.h || 0) * Math.PI / 180;
+  $("pos").textContent = x.toFixed(2) + " m / " + y.toFixed(2) + " m";
+  $("heading").textContent = Math.round(s.h || 0) + "°";
+  $("fromStart").textContent = Math.hypot(x, y).toFixed(2) + " m";
+  const last = trail[trail.length - 1];
+  if (!last || Math.hypot(last.x - x, last.y - y) > 0.03) trail.push({ x, y });
+  const now = Date.now();
+  for (let i = 0; i < SLICES; i++) {
+    if (!s.d[i]) continue;
+    const dist = s.d[i] / 100, b = i * SLICE_DEG * Math.PI / 180;
+    map.push({ x: x + dist * Math.sin(heading + b), y: y + dist * Math.cos(heading + b), t: now });
+  }
+  if (map.length > MAP_LIMIT) map.splice(0, map.length - MAP_LIMIT);
+  draw();
+}
+
+function addLog(text) {
+  const log = $("log");
+  log.textContent += text + "\n";
+  const lines = log.textContent.split("\n");
+  if (lines.length > 120) log.textContent = lines.slice(-120).join("\n");
+  log.scrollTop = log.scrollHeight;
+}
+
+const events = new EventSource("/events");
+events.onmessage = e => {
+  const m = JSON.parse(e.data), d = m.data;
+  if (m.topic === "alarmbot/scan") onScan(d);
+  else if (m.topic === "alarmbot/log") addLog(String(d));
+  else if (m.topic === "alarmbot/status") {
+    const up = d && d.state === "online";
+    $("online").textContent = up ? "online" : "offline"; $("online").className = up ? "good" : "bad";
+  } else if (m.topic === "alarmbot/state") { $("state").textContent = (d && d.state) || "?"; }
+  else if (m.topic === "alarmbot/telemetry" && d) {
+    if (typeof d.battery_v === "number") $("battery").textContent = d.battery_v.toFixed(2) + " V";
+    if (typeof d.pitch_deg === "number") $("tilt").textContent = d.pitch_deg.toFixed(1) + "°" + (d.lifted ? " LIFTED" : "");
+  } else addLog("[" + m.topic + "] " + (typeof d === "string" ? d : JSON.stringify(d)));
+};
+events.onerror = () => { $("online").textContent = "viewer stopped?"; $("online").className = "bad"; };
+
+function send(command) { fetch("/command", { method: "POST", body: command }); }
+$("scanOn").onclick = () => send("scan on");
+$("scanOff").onclick = () => send("scan off");
+$("stop").onclick = () => send("stop");
+$("start").onclick = () => { if (confirm("Start a chase? The robot will drive.")) send("start"); };
+$("clear").onclick = () => { map = []; trail = []; draw(); };
+function pick(ids, chosen) { ids.forEach(id => $(id).classList.toggle("on", id === chosen)); }
+$("viewRobot").onclick = () => { view = "robot"; pick(["viewRobot", "viewRoom"], "viewRobot"); draw(); };
+$("viewRoom").onclick = () => { view = "room"; pick(["viewRobot", "viewRoom"], "viewRoom"); draw(); };
+[2, 4, 8].forEach(r => { $("r" + r).onclick = () => { rangeM = r; pick(["r2", "r4", "r8"], "r" + r); draw(); }; });
+resize();
+</script>
+</body>
+</html>

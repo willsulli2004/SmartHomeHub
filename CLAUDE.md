@@ -8,9 +8,10 @@ alarms, and will later run custom plugins (games, sports updates, proactive anno
 - **Courses:** this is Will's independent study at UNLV and part of his CpE417 final project, which is
   **due December 1st, 2026**. Until then, Phase A in `docs/MILESTONES.md` is the critical path; stay
   inside the current milestone's scope.
-- **CpE417 robot:** the final project pairs the hub with an alarm robot that talks to it over MQTT. The
-  robot's software is built separately; this repo owns the hub side and the robot setup guide
-  (`docs/robot-integration.md`).
+- **CpE417 robot:** the final project pairs the hub with an alarm robot that talks to it over MQTT.
+  Since November 27th, 2026 the robot's firmware lives in this repo too (`firmware/robot/`), beside
+  the hub side and the MQTT contract (`docs/robot-integration.md`). It is a separate device with its
+  own pins and rules: `firmware/robot/README.md` and `AlarmBot/config.h`, not the hub's pin map below.
 - **Privacy:**
   - All audio, speech processing and data stay on the home network.
   - No public cloud services, with one approved exception: the text of a question (never audio) may go
@@ -89,7 +90,7 @@ Will's routine for every milestone that changes the satellite or Home Assistant:
 4. **Roll back if needed:** check out the previous tag and OTA it, or restore the HA backup. USB flashing
    is the last-resort recovery.
 
-**Claude never flashes the satellite or changes the live Home Assistant instance.** It compiles, then
+**Claude never flashes the satellite or the robot, and never changes the live Home Assistant instance.** It compiles, then
 gives Will the exact commands to run. Will may change this rule later.
 
 ## Testing
@@ -101,9 +102,17 @@ an explicit test checklist.
   edit the real `secrets.yaml`.
 - **OTA command for Will:** `esphome run firmware/satellite/sat-hub.yaml --device sat-hub.local`.
   Use the satellite's IP address if mDNS fails.
+- **Robot firmware compile check:** `.\.venv\Scripts\python.exe firmware/robot/robot.py compile --example`
+  builds with the placeholder settings in `firmware/robot/.env.example`. Claude cannot see the robot
+  move; every robot change needs a test list for Will, and the first run of any change to the
+  driving logic is with the wheels off the ground.
+- **Robot upload commands for Will:** `... robot.py usb COMx` over the cable, `... robot.py ota` over
+  Wi-Fi (the robot must be idle).
 - **Home Assistant config:** `.\.venv\Scripts\python.exe -m pytest homeassistant` checks the custom
   sentences (with `hassil`, Home Assistant's own matcher) and the template logic. It cannot check that
   the live instance loads a package; Will runs "Check configuration" after copying.
+- **All Python tests at once:** `.\.venv\Scripts\python.exe -m pytest` from the repo folder runs the
+  Home Assistant, mock robot and analytics tests (`pytest.ini` lists them).
 - **Python:** `pytest` for every service and plugin. Logic must be testable without hardware: mock MQTT,
   fake HA responses, the mock robot. Jarvis Core gets a text console (Phase B) so conversations can be
   tested by typing.
@@ -125,6 +134,8 @@ an explicit test checklist.
 4. **Secrets live only in gitignored files.**
    - ESPHome: `firmware/satellite/secrets.yaml`.
    - Python services: `.env` files.
+   - Robot firmware: `firmware/robot/.env`, and the header `robot.py` generates from it
+     (`firmware/robot/AlarmBot/secrets.h`).
    - Legacy Arduino tests: `HubSecrets.h` in the Arduino libraries folder.
    - Never put Wi-Fi or MQTT credentials, API keys, OTA passwords or encryption keys in code, docs,
      commits, PR text or logs. Never open or print the real secrets files.
@@ -214,17 +225,33 @@ LED supply first; a diode in the LED power lead or a level shifter on the data w
     docs/milestones/              one doc per completed milestone
     docs/setup/                   setup guides (Home Assistant, Proxmox, ...)
     docs/robot-integration.md     robot setup guide + MQTT contract (M6)
+    docs/robot-navigation.md      how the robot drives today and how to refine it
+    firmware/robot/               alarm robot firmware (Arduino sketch in AlarmBot/), robot.py to build
+                                  and upload, hardware test sketches in tests/
     firmware/satellite/           ESPHome config, packages/, components/, includes/ (small C++
                                   helpers), sounds/, secrets.example.yaml
     hardware/enclosure/           STEP files for the 3D printed enclosure
     homeassistant/                HA packages, custom sentences, dashboards, tests/
-    services/alarm-analytics/     robot telemetry processing (M6)
+    services/alarm-analytics/     robot telemetry processing (M6); runs in its own Proxmox container
     jarvis-core/                  conversation agent + plugin platform (Phase B)
     tools/mock-robot/             mock robot for testing the hub side (M6)
     tests/hardware/arduino/       legacy Arduino component tests
     tests/hardware/pc/            PC side of the legacy tests
 
 Folders are created by the milestone that first needs them.
+
+## Robot rules
+These apply to `firmware/robot/` only. The details are in `firmware/robot/AlarmBot/config.h`.
+- **Motor voltage:** the motors are rated 6 V on a pack that reaches 8.4 V. Duty is always scaled by
+  6 V over the battery voltage. Never write a raw duty.
+- **Speed cap:** `MAX_SPEED` is a hard limit. Do not raise it without Will saying so.
+- **Stall check stays on:** a stalled motor can draw more than the TB6612's 1.2 A continuous rating.
+- **Battery cut-off:** no driving at or below 6.4 V.
+- **LiDAR power sequence:** wait 2 s after EN goes high; before cutting power, end Serial1 and set
+  GPIO47 to input so the TX line does not back-power it.
+- **Pins never to use on the robot:** GPIO 9, 10, 13, 14 (dead solder stubs), 0/3/45/46 (strapping),
+  19/20 (USB), 43/44 (USB-UART), 35–37 (PSRAM), 48 (RGB LED).
+- **No motion during a Wi-Fi update,** and no update during a chase.
 
 ## Out of scope unless a milestone says otherwise
 Camera, music streaming beyond what a milestone defines, echo cancellation, enclosure work, automatic

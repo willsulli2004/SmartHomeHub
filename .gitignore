@@ -27,3 +27,13 @@ build/
 # IDE
 .idea/
 .vscode/
+
+# Local data written by services
+*.db
+
+# Robot firmware: generated from firmware/robot/.env by robot.py; holds credentials
+firmware/robot/AlarmBot/secrets.h
+firmware/robot/.example-sketch/
+
+# Viewer recordings (robot.py view --record)
+*.jsonl

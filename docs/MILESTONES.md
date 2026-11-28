@@ -13,8 +13,10 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | M2 | ESPHome satellite base | Nov 23 | merged |
 | M3 | Satellite controls and feedback | Nov 24 | merged |
 | M4 | Core voice | Nov 25 | merged |
-| M5 | Alarms | Nov 27 | in review |
-| M6 | Robot link and local server | Nov 29 | planned |
+| M5 | Alarms | Nov 27 | merged |
+| M6 | Robot link and local server | Nov 29 | in review |
+| M6b | Robot firmware | Nov 29 | in review |
+| M6c | Robot navigation | Nov 30 | in progress |
 | M7 | Demo hardening and report | Dec 1 | planned |
 
 Target dates are a plan, not promises. Thanksgiving is November 26th. If Phase A slips, cut from M3's
@@ -147,16 +149,42 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 - **Done when:** a full alarm → chase → caught → stop cycle works with the mock robot, the dashboard
   updates, and the guide is ready for the robot agent.
 
-**Draft MQTT contract** (finalized in `docs/robot-integration.md`; payloads are JSON, timestamps ISO 8601 UTC):
+**MQTT contract.** `docs/robot-integration.md` is now the reference and has every field. In short
+(payloads are JSON, timestamps ISO 8601 UTC):
 
 | Topic | Direction | QoS / retain | Payload |
 |---|---|---|---|
+| `hub/alarm/schedule` | hub → robot | 1 / retained | `{"alarms", "next_epoch", "next", "ts"}` (added in M6, so a sleeping robot knows when to wake) |
 | `hub/alarm/start` | hub → robot | 1 / no | `{"alarm_id", "ts"}` |
 | `hub/alarm/stop` | hub → robot | 1 / no | `{"alarm_id", "reason": "caught\|user\|timeout", "ts"}` |
 | `alarmbot/status` | robot → all | 1 / retained | `{"state": "online"}`; Last Will (sent automatically on disconnect): `{"state": "offline"}` |
 | `alarmbot/state` | robot → all | 1 / retained | `{"state": "idle\|fleeing\|caught\|error", "ts"}` |
-| `alarmbot/telemetry` | robot → all | 0 / no | `{"alarm_id", "ts_ms", "imu", "dist_cm", "odom_m", "battery_v"}` |
+| `alarmbot/telemetry` | robot → all | 0 / no | `{"alarm_id", "ts_ms", "state", "battery_v", "odom_m", "speed_mps", "pitch_deg", "lifted", "nearest_cm", "bearing_deg"}` |
 | `alarmbot/caught` | robot → hub | 1 / no | `{"alarm_id", "ts", "chase_ms", "distance_m"}` |
+
+### M6b — Robot firmware
+**Goal:** the real robot connects and runs the alarm → chase → caught → stop cycle. Added on
+November 27th, 2026, when Will moved the robot's firmware into this repo.
+- **Firmware** (`firmware/robot/AlarmBot/`): Wi-Fi, MQTT, the state machine from the robot guide,
+  lift detection from the IMU, a simple reactive chase using the LiDAR, odometry, a stall check.
+- **Build tool** (`firmware/robot/robot.py`): compile, upload over USB, update over Wi-Fi, with
+  settings from a gitignored `.env`.
+- **Navigation guide** (`docs/robot-navigation.md`): how it drives now and how to refine it.
+- **Not included:** deep sleep, and fleeing from the person specifically.
+- **Done when:** the bring-up checklist in `docs/robot-integration.md` passes through step 12.
+
+### M6c — Robot navigation
+**Goal:** the robot runs away with purpose instead of wandering. Asked for by Will on November
+28th, 2026 after the first floor runs: it avoided walls but drifted in slow circles.
+- **Stage A, see what it sees:** scans streamed over Wi-Fi, a browser viewer (`robot.py view`) with
+  recording, position tracking from the encoders and gyro, and a LiDAR test.
+- **Stage B, get away from the start:** steer for the best gap using the whole scan, favour gaps
+  that lead away from where it started and from where it has been, hold a heading with the gyro,
+  speed scaled to the room ahead with the cap raised to 80%.
+- **Stage C, avoid people:** find narrow moving clusters (legs), track the best one, and prefer
+  gaps away from it. Tuned on recordings from stage A.
+- **Done when:** from a start beside the bed it ends up across the room without circling, and
+  moves away from a person walking towards it.
 
 ### M7 — Demo hardening and report
 **Goal:** a reliable demo and the material for the report.
@@ -251,8 +279,14 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 - **Camera:** out of scope; camera data never leaves the home.
 - **Questions:** may go to the Claude API as text only.
 - **Plugins:** written in Python.
+- **CpE417 "cloud" part:** the self-hosted Mosquitto broker is accepted (Will, November 27th, 2026).
+- **Catches:** Home Assistant trusts the robot's `caught` report at once; the analytics service marks
+  a catch as suspicious afterwards. A stopped service never leaves an alarm ringing.
+- **Robot code:** lives in this repo under `firmware/robot/` (Will, November 27th, 2026), so it has
+  the same git history and update-over-Wi-Fi routine as the hub. The original test sketches were
+  copied from Will's Arduino folder into `firmware/robot/tests/`.
 
 ## Open questions
-- Does the CpE417 rubric accept a self-hosted broker as the "cloud" component?
-- Where does the robot's code live, and how far along is the robot?
+- The robot's gear ratio, IMU axis mapping and LiDAR front offset are still to be measured (they
+  decide its odometry, pitch and bearing).
 - Music library source (decide at M11).

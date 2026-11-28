@@ -6,7 +6,7 @@ everything the satellite needs: a fixed address, backups, an MQTT broker, and a 
 Sections 2 to 10 are steps to do once, in order. Section 11 is the test checklist. Section 12 is for
 rebuilding after a failure. Section 13 (added in M4) sets up device commands, timers and Claude for
 general questions. Section 14
-(added in M5) installs the alarm package.
+(added in M5) installs the alarm package. Section 15 (added in M6) adds the robot link.
 
 ## Where things happen
 
@@ -778,3 +778,68 @@ If a row shows "Entity not available", the satellite's entity has a different id
 Edit the card, pick the right entity for that row, and tell Claude so the repo copy can be corrected.
 
 The same dashboard works in the phone app.
+
+## 15. Robot link (M6)
+
+Adds the alarm robot to Home Assistant: whether it is online, what it is doing, the alarm schedule it
+reads, and a Robot page on the Alarms dashboard. No firmware is flashed.
+
+There are three parts, and each works without the others:
+
+| Part | Where it runs | What it gives |
+|---|---|---|
+| `packages/hub_robot.yaml` | Home Assistant | **Hub Robot online**, **Hub Robot state**, and the retained alarm schedule |
+| The alarm analytics service | the PC for a first try, then its own Proxmox container | the **Hub Robot** device: battery, wake-up history, catch check, 7-day figures |
+| The mock robot | the PC | a stand-in for the robot, for testing |
+
+### 15.1 Copy the package
+
+In the File editor, create `packages/hub_robot.yaml` and paste in all of
+`homeassistant/packages/hub_robot.yaml` from the repo. Then **Developer tools → YAML → Check
+configuration**, and if it is valid, **Restart Home Assistant**.
+
+Check: **Developer tools → States**, type `hub_robot`. `binary_sensor.hub_robot_online` and
+`sensor.hub_robot_state` exist. Both read *unknown* until a robot, real or mock, has connected.
+
+Check the schedule: on the MQTT page (**Settings → Devices & services → MQTT → Configure**), listen to
+`hub/alarm/schedule`, then switch any alarm on or off on the Alarms dashboard. A message appears
+listing the alarms that are set and `next_epoch`, the moment the next one fires.
+
+### 15.2 Start the analytics service
+
+Follow "Run it on the PC" in `services/alarm-analytics/README.md`. When it prints `Connected to the
+broker.`, a **Hub Robot** device appears under **Settings → Devices & services → MQTT** with its
+entities. Nothing is typed into Home Assistant for this; the service announces them.
+
+Once it works on the PC, stop it there and move it to its container with
+[alarm-analytics.md](alarm-analytics.md).
+
+### 15.3 Update the dashboard
+
+Open the **Alarms** dashboard → pencil → three dots → **Raw configuration editor**. Replace
+everything with the new `homeassistant/dashboards/hub_alarms.yaml` from the repo and save. A second
+page, **Robot**, appears beside Alarms.
+
+| Card on the Robot page | Shows |
+|---|---|
+| Robot | online, what it is doing, battery voltage and level, low and critical warnings |
+| Last alarm | what stopped it, wake-up delay, time to catch, distance, catch check |
+| Last 7 days | average wake-up delay and time to catch, and counts |
+| Wake-up history | a 7-day chart of wake-up delay and time to catch |
+| Battery | a 24-hour chart |
+| Robot settings | the shortest lift that counts as a catch, and the battery warning level |
+
+If a row shows "Entity not available" while the service is running, the entity has a different id on
+your install; pick the right one on that row and tell Claude.
+
+### 15.4 Run the mock robot
+
+Follow `tools/mock-robot/README.md`. With the mock running, **Hub Robot online** turns on. Press
+**Ring the alarm now (test)** on the Alarms page: the hub rings, the mock "runs" for 15 seconds and
+reports caught, the hub goes quiet, and the Robot page fills in.
+
+### 15.5 Going back
+
+Delete `packages/hub_robot.yaml` in the File editor and restart Home Assistant. Stop the analytics
+service (and delete the **Hub Robot** device under MQTT if you want its entities gone). Alarms are
+unaffected: they never depended on any of this.
