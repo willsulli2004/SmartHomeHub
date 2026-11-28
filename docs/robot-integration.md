@@ -5,6 +5,10 @@ writes the robot's firmware, person or agent, and assumes the robot's hardware b
 motors, encoders, IMU and LiDAR each work in their own test sketch, and there is no Wi-Fi, MQTT, state
 machine or sleep code yet.
 
+**The firmware now exists:** `firmware/robot/` in this repo, written against this document on
+November 27th, 2026. `firmware/robot/README.md` covers building, uploading and the first run. This
+guide remains the reference for what the robot must do on the broker.
+
 This document is the contract. The hub side already follows it and is tested against a mock robot
 that follows it too. If the robot needs something the contract does not give, change this document
 first and tell Will, so the hub side changes with it.
@@ -61,11 +65,9 @@ Home Assistant                      broker                         robot
 - **Client id:** `alarmbot`. The mock robot uses `alarmbot-mock`, so the two can run side by side
   during bring-up, but only one of them should answer alarms at a time.
 
-**Where the robot keeps these:** in a header that is never committed, the same way the hub's legacy
-Arduino tests use `HubSecrets.h`. Create `RobotSecrets.h` in the Arduino libraries folder (for
-example `Documents\Arduino\libraries\RobotSecrets\RobotSecrets.h`) with five values: the Wi-Fi name
-and password, the broker address, and the MQTT username and password. Include it with
-`#include <RobotSecrets.h>`. Never put the values in a sketch, a commit, a log line or a chat.
+**Where the robot keeps these:** in `firmware/robot/.env`, which is gitignored. `robot.py` turns it
+into a header (`AlarmBot/secrets.h`, also gitignored) before each build. Never put the values in a
+sketch, a commit, a log line or a chat.
 
 ## 3. Topics and messages
 
@@ -267,7 +269,8 @@ the app. The robot only learns of it the next time it wakes. Waking every 15 min
 set at least 15 minutes ahead is never missed. An alarm set for sooner than that may ring with the
 robot still asleep; the hub rings regardless. Shorten the cap if that matters for the demo.
 
-**For the demo,** a build flag that disables sleep entirely is the simplest reliable setup.
+**For the demo,** a build with no sleep is the simplest reliable setup. That is what the firmware in
+`firmware/robot/` does today: sleep is not built yet, and the robot stays awake and connected.
 
 Before sleeping: brake and set the driver's STBY low, power the LiDAR down as the hardware notes
 describe, and publish `offline` (section 5).
@@ -293,8 +296,10 @@ message is about 200 bytes, around 1 kB a second.
 
 ## 10. Firmware skeleton
 
-This is a starting point for the networking part, not finished firmware. **It has not been compiled
-or run**; the hub repo has no robot hardware. Check each call against the library's own examples.
+**The real firmware is in `firmware/robot/AlarmBot/` and supersedes this skeleton.** It uses the MQTT
+client built into the ESP32 board package (esp-mqtt), which publishes at QoS 1 and needs no extra
+library, and it builds its JSON by hand, so neither library named below is used. The skeleton is
+kept because it shows the contract's calls in the fewest lines. It has not been compiled or run.
 
 **Library:** "MQTT" by Joël Gähwiler (`256dpi/arduino-mqtt` in the Arduino Library Manager). It can
 publish at QoS 1, set a retained Last Will, and has a small API. Asking Will before adding it is the

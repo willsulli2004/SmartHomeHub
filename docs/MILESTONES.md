@@ -15,6 +15,7 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | M4 | Core voice | Nov 25 | merged |
 | M5 | Alarms | Nov 27 | merged |
 | M6 | Robot link and local server | Nov 29 | in review |
+| M6b | Robot firmware | Nov 29 | in review |
 | M7 | Demo hardening and report | Dec 1 | planned |
 
 Target dates are a plan, not promises. Thanksgiving is November 26th. If Phase A slips, cut from M3's
@@ -160,6 +161,17 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 | `alarmbot/telemetry` | robot → all | 0 / no | `{"alarm_id", "ts_ms", "state", "battery_v", "odom_m", "speed_mps", "pitch_deg", "lifted", "nearest_cm", "bearing_deg"}` |
 | `alarmbot/caught` | robot → hub | 1 / no | `{"alarm_id", "ts", "chase_ms", "distance_m"}` |
 
+### M6b — Robot firmware
+**Goal:** the real robot connects and runs the alarm → chase → caught → stop cycle. Added on
+November 27th, 2026, when Will moved the robot's firmware into this repo.
+- **Firmware** (`firmware/robot/AlarmBot/`): Wi-Fi, MQTT, the state machine from the robot guide,
+  lift detection from the IMU, a simple reactive chase using the LiDAR, odometry, a stall check.
+- **Build tool** (`firmware/robot/robot.py`): compile, upload over USB, update over Wi-Fi, with
+  settings from a gitignored `.env`.
+- **Navigation guide** (`docs/robot-navigation.md`): how it drives now and how to refine it.
+- **Not included:** deep sleep, and fleeing from the person specifically.
+- **Done when:** the bring-up checklist in `docs/robot-integration.md` passes through step 12.
+
 ### M7 — Demo hardening and report
 **Goal:** a reliable demo and the material for the report.
 - **End-to-end runs:** with the real robot, plus failure cases:
@@ -256,8 +268,9 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 - **CpE417 "cloud" part:** the self-hosted Mosquitto broker is accepted (Will, November 27th, 2026).
 - **Catches:** Home Assistant trusts the robot's `caught` report at once; the analytics service marks
   a catch as suspicious afterwards. A stopped service never leaves an alarm ringing.
-- **Robot code:** lives outside this repo, in Will's Arduino folder. As of November 27th it is
-  hardware bring-up only; `docs/robot-integration.md` covers networking, states and sleep from scratch.
+- **Robot code:** lives in this repo under `firmware/robot/` (Will, November 27th, 2026), so it has
+  the same git history and update-over-Wi-Fi routine as the hub. The original test sketches were
+  copied from Will's Arduino folder into `firmware/robot/tests/`.
 
 ## Open questions
 - The robot's gear ratio, IMU axis mapping and LiDAR front offset are still to be measured (they
