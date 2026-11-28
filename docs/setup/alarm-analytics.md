@@ -33,7 +33,7 @@ Pick the newest **debian-12-standard** (or debian-13 if listed) and click **Down
 | Disks | 4 GiB |
 | CPU | 1 core |
 | Memory | 256 MiB, swap 256 MiB |
-| Network | bridge `vmbr0`, IPv4 **DHCP** |
+| Network | bridge `vmbr0`, IPv4 **DHCP**. The wizard starts on **Static** with an empty address; a container left that way has no network at all. |
 | DNS | leave as is |
 
 Click **Finish**. Then select the new container → **Options → Start at boot → Yes**, and click
@@ -44,6 +44,23 @@ The service only makes outgoing connections to the broker, so the container need
 ## 3. Install the service
 
 **Where:** Proxmox web UI → the container → **Console**. Log in as `root`.
+
+**Pasting commands.** These commands are long and a single mistyped letter breaks them, so paste
+them. In the console, right-click and choose **Paste**, or press Ctrl+Shift+V. If the container's own
+console will not paste, use the host's instead: Proxmox web UI → **pve → Shell**, type `pct enter`
+followed by the container's ID (for example `pct enter 103`), and paste there. You are then inside
+the container as root, with no login.
+
+**Check the network first.** This must print a line starting with `inet`:
+
+```bash
+ip -4 addr show eth0
+```
+
+If it prints nothing, the container has no address: open the container's **Network** tab, double-click
+`eth0`, set **IPv4** to **DHCP**, click **OK**, and reboot the container. If `apt` then reports
+"Temporary failure resolving", set a DNS server on the container's **DNS** tab (your router's
+address) and reboot it again.
 
 1. Install Python's venv support and git:
 
@@ -57,10 +74,24 @@ The service only makes outgoing connections to the broker, so the container need
    git clone https://github.com/willsulli2004/SmartHomeHub.git /opt/SmartHomeHub
    ```
 
+   **Until the M6 pull request is merged,** the service exists only on its branch. Switch to it:
+
+   ```bash
+   git -C /opt/SmartHomeHub checkout milestone/M06-robot-link
+   ```
+
+   After the merge, switch back with `git -C /opt/SmartHomeHub checkout main` before updating.
+
 3. Put the service where the systemd unit expects it, with its own Python environment:
 
    ```bash
    mkdir -p /opt/alarm-analytics && cp -r /opt/SmartHomeHub/services/alarm-analytics/alarm_analytics /opt/alarm-analytics/
+   ```
+
+   Check it landed. This must list `__main__.py`, `analytics.py` and the other files:
+
+   ```bash
+   ls /opt/alarm-analytics/alarm_analytics
    ```
    ```bash
    python3 -m venv /opt/alarm-analytics/venv && /opt/alarm-analytics/venv/bin/pip install -r /opt/SmartHomeHub/services/alarm-analytics/requirements.txt
