@@ -1,5 +1,5 @@
 # M06 — Robot link and local server
-Status: in review   Branch: `milestone/M06-robot-link`   PR: (added when the PR is opened)
+Status: in review   Branch: `milestone/M06-robot-link`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/9
 
 ## Goal
 A full alarm → chase → caught → stop cycle works against a mock robot, the app shows the robot and its
