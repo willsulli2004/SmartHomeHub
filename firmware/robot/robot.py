@@ -6,19 +6,23 @@ Run from the repo folder with the project's Python:
     .\\.venv\\Scripts\\python.exe firmware/robot/robot.py usb COM7
     .\\.venv\\Scripts\\python.exe firmware/robot/robot.py ota
     .\\.venv\\Scripts\\python.exe firmware/robot/robot.py monitor COM7
+    .\\.venv\\Scripts\\python.exe firmware/robot/robot.py monitor
 
-    compile   build only, to check the code
-    usb       build, then upload over the USB cable (the first flash must be this)
-    ota       build, then upload over Wi-Fi to a robot that is switched on and idle
-    monitor   show the robot's serial output
+    compile       build only, to check the code
+    usb           build, then upload over the USB cable (the first flash must be this)
+    ota           build, then upload over Wi-Fi to a robot that is switched on and idle
+    monitor COMx  show the robot's output over the USB cable
+    monitor       show the robot's output over Wi-Fi, and send it typed commands
 
 It uses the arduino-cli program that comes with the Arduino IDE, and the ESP32
-board package already installed there. Nothing else is installed.
+board package already installed there. The Wi-Fi monitor uses paho-mqtt, which
+is in requirements-dev.txt.
 
 Settings come from firmware/robot/.env (see .env.example). Before each build they
 are written to AlarmBot/secrets.h, which the sketch includes. Both files are
-gitignored. Pass --example to build with .env.example instead, which is how the
-code is compile-checked without real credentials.
+gitignored. Pass --example to compile-check the code with .env.example instead of
+real credentials; that build is made from a copy of the sketch, so it never
+touches the real secrets.h.
 """
 
 from __future__ import annotations
@@ -65,8 +69,8 @@ def c_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def write_secrets(values: dict[str, str]) -> None:
-    """Write AlarmBot/secrets.h from the settings. Raises SystemExit naming anything missing."""
+def write_secrets(values: dict[str, str], header: Path = SECRETS_HEADER) -> None:
+    """Write secrets.h from the settings. Raises SystemExit naming anything missing."""
     missing = [key for key in REQUIRED if not values.get(key)]
     if missing:
         raise SystemExit("Missing in .env: " + ", ".join(missing))
@@ -80,7 +84,7 @@ def write_secrets(values: dict[str, str]) -> None:
     ]
     lines += [f"#define SECRET_{key} {c_string(values[key])}" for key in TEXT_KEYS]
     lines += [f"#define SECRET_MQTT_PORT {int(values['MQTT_PORT'])}", ""]
-    SECRETS_HEADER.write_text("\n".join(lines), encoding="utf-8")
+    header.write_text("\n".join(lines), encoding="utf-8")
 
 
 def find_arduino_cli() -> str:
@@ -115,8 +119,91 @@ def build_dir() -> Path:
     return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "AlarmBotBuild"
 
 
-def compile_sketch(cli: str) -> None:
-    run([cli, "compile", "--fqbn", FQBN, "--build-path", str(build_dir()), "--warnings", "default", str(SKETCH)])
+def compile_sketch(cli: str, sketch: Path = SKETCH, build: Path | None = None) -> None:
+    build = build or build_dir()
+    run([cli, "compile", "--fqbn", FQBN, "--build-path", str(build), "--warnings", "default", str(sketch)])
+
+
+def compile_example(cli: str) -> None:
+    """Compile-check with .env.example, from a copy of the sketch.
+
+    The copy keeps the placeholder settings away from the real AlarmBot/secrets.h,
+    and its own build folder keeps a placeholder build away from the one that
+    `usb` and `ota` upload.
+    """
+    # The copy lives in the repo folder (gitignored), not under AppData: a Python
+    # installed from the Microsoft Store writes AppData files where other
+    # programs, including arduino-cli, cannot see them.
+    copy = HERE / ".example-sketch" / "AlarmBot"
+    if copy.exists():
+        shutil.rmtree(copy)
+    shutil.copytree(SKETCH, copy, ignore=shutil.ignore_patterns("secrets.h"))
+    write_secrets(read_env(HERE / ".env.example"), copy / "secrets.h")
+    compile_sketch(cli, copy, build_dir().with_name("AlarmBotExampleBuild"))
+
+
+def wifi_monitor(values: dict[str, str]) -> None:
+    """Show the robot's output over Wi-Fi, and send it what is typed.
+
+    The robot copies every line it prints to the MQTT topic alarmbot/log, and
+    treats a message on alarmbot/command as a console command. This connects to
+    the same broker with the settings in .env, so no cable is needed. It also
+    shows the alarm messages passing between the hub and the robot.
+    """
+    try:
+        import paho.mqtt.client as mqtt
+    except ImportError:
+        raise SystemExit(
+            "The Wi-Fi monitor needs paho-mqtt: .\\.venv\\Scripts\\python.exe -m pip install -r requirements-dev.txt"
+        ) from None
+    import threading
+
+    missing = [key for key in ("MQTT_HOST", "MQTT_PORT", "MQTT_USERNAME", "MQTT_PASSWORD") if not values.get(key)]
+    if missing:
+        raise SystemExit("Missing in .env: " + ", ".join(missing))
+
+    # A client id of its own, so it never knocks the robot ("alarmbot") off the broker.
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="alarmbot-monitor")
+    client.username_pw_set(values["MQTT_USERNAME"], values["MQTT_PASSWORD"])
+
+    def on_connect(client, userdata, flags, reason_code, properties) -> None:  # noqa: ANN001
+        if reason_code.is_failure:
+            print(f"Broker refused the connection: {reason_code}", flush=True)
+            return
+        print("Connected. Showing the robot's output. Type a command (help, status, start, stop) and", flush=True)
+        print("press Enter to send it. 'start' makes the robot drive. Ctrl+C to leave.\n", flush=True)
+        for topic in ("alarmbot/log", "alarmbot/status", "alarmbot/state", "alarmbot/caught", "hub/alarm/#"):
+            client.subscribe(topic, qos=0)
+
+    def on_message(client, userdata, message) -> None:  # noqa: ANN001
+        text = message.payload.decode("utf-8", "replace")
+        if message.topic == "alarmbot/log":
+            print(text, flush=True)
+        else:
+            print(f"    [{message.topic}] {text}", flush=True)
+
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(values["MQTT_HOST"], int(values["MQTT_PORT"]), keepalive=30)
+    client.loop_start()
+
+    def send_typed_lines() -> None:
+        while True:
+            try:
+                line = input().strip()
+            except EOFError:
+                return
+            if line:
+                client.publish("alarmbot/command", line, qos=1, retain=False)
+
+    threading.Thread(target=send_typed_lines, daemon=True).start()
+    try:
+        threading.Event().wait()  # until Ctrl+C
+    except KeyboardInterrupt:
+        pass
+    finally:
+        client.loop_stop()
+        client.disconnect()
 
 
 def main() -> None:
@@ -126,15 +213,23 @@ def main() -> None:
     parser.add_argument("--example", action="store_true", help="build with .env.example (no real credentials)")
     args = parser.parse_args()
 
+    if args.action == "monitor" and not args.port:
+        wifi_monitor(read_env(HERE / ".env"))
+        return
+
     cli = find_arduino_cli()
 
     if args.action == "monitor":
-        if not args.port:
-            raise SystemExit("Give the COM port, for example: robot.py monitor COM7")
         run([cli, "monitor", "--port", args.port, "--config", "baudrate=115200"])
         return
 
-    values = read_env(HERE / (".env.example" if args.example else ".env"))
+    if args.example:
+        if args.action != "compile":
+            raise SystemExit("--example is for compile checks only; it cannot update a real robot.")
+        compile_example(cli)
+        return
+
+    values = read_env(HERE / ".env")
     write_secrets(values)
     compile_sketch(cli)
 
@@ -143,8 +238,6 @@ def main() -> None:
             raise SystemExit("Give the COM port, for example: robot.py usb COM7")
         run([cli, "upload", "--fqbn", FQBN, "--build-path", str(build_dir()), "--port", args.port, str(SKETCH)])
     elif args.action == "ota":
-        if args.example:
-            raise SystemExit("--example is for compile checks only; it cannot update a real robot.")
         address = values.get("ROBOT_ADDRESS") or "alarmbot.local"
         password = values["OTA_PASSWORD"]
         run(

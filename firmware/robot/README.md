@@ -44,7 +44,8 @@ PowerShell, in the repo folder.
 | `.\.venv\Scripts\python.exe firmware/robot/robot.py compile` | builds only, to check the code |
 | `.\.venv\Scripts\python.exe firmware/robot/robot.py usb COM7` | builds and uploads over the USB cable |
 | `.\.venv\Scripts\python.exe firmware/robot/robot.py ota` | builds and uploads over Wi-Fi |
-| `.\.venv\Scripts\python.exe firmware/robot/robot.py monitor COM7` | shows the robot's serial output |
+| `.\.venv\Scripts\python.exe firmware/robot/robot.py monitor COM7` | shows the robot's output over the USB cable |
+| `.\.venv\Scripts\python.exe firmware/robot/robot.py monitor` | shows the robot's output over Wi-Fi, and sends it what you type |
 
 Replace `COM7` with the robot's port (Device Manager → Ports, with the cable in).
 
@@ -59,9 +60,21 @@ The sketch also opens in the Arduino IDE (open `AlarmBot/AlarmBot.ino`), as long
 has been run once so that `secrets.h` exists. Board: **ESP32S3 Dev Module**, Flash Size 16MB, PSRAM
 OPI, Partition Scheme "16M Flash (3MB APP/9.9MB FATFS)".
 
-## Serial console
+## Console
 
-At 115200 baud. A status line prints by itself every 10 seconds, and every second during a chase:
+The robot's text output and its commands work two ways:
+
+- **Over USB,** at 115200 baud: `robot.py monitor COM7`.
+- **Over Wi-Fi,** with no cable: `robot.py monitor`. The robot copies every line it prints to the
+  MQTT topic `alarmbot/log` and obeys commands sent to `alarmbot/command`; the monitor connects to
+  the broker with the settings in `.env`. It also shows the alarm messages passing between the hub
+  and the robot. Type a command and press Enter to send it; Ctrl+C leaves.
+
+Over Wi-Fi you only see lines printed while the robot is connected to the broker, so the boot
+messages and anything printed while Wi-Fi is down appear only over USB. **`start` typed into the
+Wi-Fi monitor makes the robot drive,** the same as over USB.
+
+A status line prints by itself every 10 seconds, and every second during a chase:
 
     fleeing wifi 1 mqtt 1 | batt 7.82 V | tilt  1.4 deg | odom 3.41 m 0.45 m/s | lidar 10 Hz near 1420 mm @  175 | cruise stalls 0
 
@@ -138,6 +151,7 @@ angle) into Home Assistant is a follow-up; see [docs/robot-navigation.md](../../
 
 ## Not built yet
 
+- **Tuning from the app.** The numbers are in `config.h`.
 - **Deep sleep** and waking before the alarm (section 8 of the robot guide). The robot stays awake.
 - **Following or fleeing from a person** specifically. It avoids whatever is near.
 - **Touch pads** on GPIO2.

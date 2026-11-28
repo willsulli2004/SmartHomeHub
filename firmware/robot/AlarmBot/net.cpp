@@ -28,6 +28,8 @@ void onMqttEvent(void *, esp_event_base_t, int32_t event_id, void *event_data) {
     case MQTT_EVENT_CONNECTED:
       // One subscription covers hub/alarm/schedule, /start and /stop.
       esp_mqtt_client_subscribe(client, "hub/alarm/#", 1);
+      // Console commands sent over Wi-Fi by `robot.py monitor`.
+      esp_mqtt_client_subscribe(client, "alarmbot/command", 1);
       connected = true;
       just_connected = true;
       break;

@@ -25,6 +25,7 @@
 
 #include "chase.h"
 #include "config.h"
+#include "console.h"
 #include "drive.h"
 #include "net.h"
 #include "sensors.h"
@@ -147,7 +148,7 @@ void publishCaught() {
 
 void setState(State next) {
   state = next;
-  Serial.printf("[state] %s%s%s\n", stateName(), next == State::Error ? ": " : "",
+  console.printf("[state] %s%s%s\n", stateName(), next == State::Error ? ": " : "",
                 next == State::Error ? error_reason : "");
   publishState();
   last_telemetry_ms = 0;  // send a reading straight away in the new state
@@ -180,10 +181,10 @@ void startChase(const char *id) {
     fail("battery too low to run");
     return;
   }
-  Serial.printf("[chase] start, alarm_id %s\n", alarm_id);
+  console.printf("[chase] start, alarm_id %s\n", alarm_id);
   drive::resetOdometry();
   // The robot is standing still on the floor at this moment: learn "level" now.
-  if (!imu::captureLevel()) Serial.println("[chase] WARNING: no IMU, so a lift cannot be detected");
+  if (!imu::captureLevel()) console.println("[chase] WARNING: no IMU, so a lift cannot be detected");
   lidar::powerOn();
   chase::begin();
   lifted = false;
@@ -209,10 +210,17 @@ void reportCaught() {
 
 void handleMessage(const net::Incoming &message) {
   char id[40];
+  if (strcmp(message.topic, "alarmbot/command") == 0) {
+    // A console command typed into `robot.py monitor`, the same as one typed
+    // over USB. The payload is the command text, for example "status".
+    console.printf("> %s\n", message.payload);
+    handleCommand(String(message.payload));
+    return;
+  }
   if (strcmp(message.topic, "hub/alarm/schedule") == 0) {
     double epoch = 0;
     next_alarm_epoch = jsonNumber(message.payload, "next_epoch", epoch) ? epoch : 0;
-    Serial.printf("[hub] schedule: next alarm epoch %.0f\n", next_alarm_epoch);
+    console.printf("[hub] schedule: next alarm epoch %.0f\n", next_alarm_epoch);
   } else if (strcmp(message.topic, "hub/alarm/start") == 0) {
     if (jsonText(message.payload, "alarm_id", id, sizeof(id))) startChase(id);
   } else if (strcmp(message.topic, "hub/alarm/stop") == 0) {
@@ -220,7 +228,7 @@ void handleMessage(const net::Incoming &message) {
     if (state == State::Idle || strcmp(id, alarm_id) != 0) return;  // not about our alarm
     char reason[16] = "?";
     jsonText(message.payload, "reason", reason, sizeof(reason));
-    Serial.printf("[hub] stop, reason %s\n", reason);
+    console.printf("[hub] stop, reason %s\n", reason);
     goIdle();
   }
 }
@@ -235,7 +243,7 @@ void runFleeing() {
     return;
   }
   if (now - chase_start_ms > CHASE_MAX_MS) {
-    Serial.println("[chase] no stop after 15 minutes: giving up");
+    console.println("[chase] no stop after 15 minutes: giving up");
     goIdle();
     return;
   }
@@ -250,7 +258,7 @@ void runFleeing() {
       else if (now - tilt_since_ms >= LIFT_BEGIN_MS) {
         lifted = true;
         drive::brake();
-        Serial.printf("[chase] lifted (tilt %.0f deg)\n", tilt);
+        console.printf("[chase] lifted (tilt %.0f deg)\n", tilt);
       }
     } else {
       tilt_since_ms = 0;
@@ -258,7 +266,7 @@ void runFleeing() {
   } else if (tilt < LIFT_RELEASE_DEG) {
     lifted = false;
     tilt_since_ms = 0;
-    Serial.println("[chase] put down again: carrying on");
+    console.println("[chase] put down again: carrying on");
   } else if (now - tilt_since_ms >= LIFT_CAUGHT_MS) {
     reportCaught();
     return;
@@ -279,7 +287,7 @@ void runFleeing() {
 void runCaught() {
   const uint32_t now = millis();
   if (now - caught_at_ms > CAUGHT_GIVE_UP_MS) {
-    Serial.println("[chase] the hub never answered the catch: back to idle");
+    console.println("[chase] the hub never answered the catch: back to idle");
     goIdle();
   } else if (caught_sends < CAUGHT_SENDS && now - caught_last_send_ms > CAUGHT_RESEND_MS) {
     publishCaught();  // the hub ignores repeats
@@ -291,7 +299,7 @@ void runCaught() {
 void printStatus() {
   float distance_mm = 0, bearing_deg = 0;
   const bool seen = lidar::nearest(distance_mm, bearing_deg);
-  Serial.printf(
+  console.printf(
       "%-7s wifi %d mqtt %d | batt %.2f V | tilt %4.1f deg%s | odom %.2f m %.2f m/s | lidar %2d Hz near %4.0f mm @ %4.0f | %s stalls %d\n",
       stateName(), net::wifiConnected(), net::mqttConnected(), battery::volts(), imu::tiltDegrees(),
       lifted ? " LIFTED" : "", drive::odometryMetres(), drive::speedMetresPerSecond(),
@@ -300,14 +308,14 @@ void printStatus() {
 }
 
 void printHelp() {
-  Serial.println("Commands:");
-  Serial.println("  status       one line of readings (also printed by itself)");
-  Serial.println("  start        run a chase without the hub (alarm id local-test)");
-  Serial.println("  stop         end the chase");
-  Serial.println("  level        learn 'level' again; robot must be still on the floor");
-  Serial.println("  cal          begin distance calibration, then push the robot a measured distance");
-  Serial.println("  cal 1.0      finish it: the number is the distance pushed, in metres");
-  Serial.println("  help         this list");
+  console.println("Commands:");
+  console.println("  status       one line of readings (also printed by itself)");
+  console.println("  start        run a chase without the hub (alarm id local-test)");
+  console.println("  stop         end the chase");
+  console.println("  level        learn 'level' again; robot must be still on the floor");
+  console.println("  cal          begin distance calibration, then push the robot a measured distance");
+  console.println("  cal 1.0      finish it: the number is the distance pushed, in metres");
+  console.println("  help         this list");
 }
 
 void handleCommand(String line) {
@@ -322,33 +330,33 @@ void handleCommand(String line) {
   } else if (line == "stop") {
     if (state != State::Idle) goIdle();
   } else if (line == "level") {
-    Serial.println(imu::captureLevel() ? "Level learned." : "No IMU.");
+    console.println(imu::captureLevel() ? "Level learned." : "No IMU.");
   } else if (line == "cal") {
     if (state != State::Idle) {
-      Serial.println("Calibrate while idle.");
+      console.println("Calibrate while idle.");
       return;
     }
     cal_start_l = drive::rawCountLeft();
     cal_start_r = drive::rawCountRight();
-    Serial.println("Calibration started. Push the robot straight along a measured distance, wheels");
-    Serial.println("rolling without slipping, then type: cal <metres>   for example: cal 1.0");
+    console.println("Calibration started. Push the robot straight along a measured distance, wheels");
+    console.println("rolling without slipping, then type: cal <metres>   for example: cal 1.0");
   } else if (line.startsWith("cal ")) {
     const float metres = line.substring(4).toFloat();
     if (cal_start_l < 0 || metres <= 0.05f) {
-      Serial.println("Type 'cal' first, push the robot, then 'cal <metres>'.");
+      console.println("Type 'cal' first, push the robot, then 'cal <metres>'.");
       return;
     }
     const float counts = (labs(drive::rawCountLeft() - cal_start_l) + labs(drive::rawCountRight() - cal_start_r)) / 2.0f;
     cal_start_l = cal_start_r = -1;
     if (counts < 200) {
-      Serial.printf("Only %.0f counts: the wheels did not turn enough. Nothing saved.\n", counts);
+      console.printf("Only %.0f counts: the wheels did not turn enough. Nothing saved.\n", counts);
       return;
     }
     drive::setCountsPerMetre(counts / metres);
-    Serial.printf("%.0f counts over %.2f m = %.0f counts per metre. Saved.\n", counts, metres,
+    console.printf("%.0f counts over %.2f m = %.0f counts per metre. Saved.\n", counts, metres,
                   drive::countsPerMetre());
   } else {
-    Serial.println("Unknown command. Type 'help'.");
+    console.println("Unknown command. Type 'help'.");
   }
 }
 
@@ -387,15 +395,15 @@ void setup() {
 
   Serial.begin(115200);
   delay(500);
-  Serial.printf("\nAlarmBot. Reset reason: %s\n", resetName(esp_reset_reason()));
+  console.printf("\nAlarmBot. Reset reason: %s\n", resetName(esp_reset_reason()));
 
   battery::begin();
-  Serial.printf("Battery: %.2f V\n", battery::volts());
-  Serial.printf("IMU: %s\n", imu::begin() ? "OK" : "NOT FOUND");
-  Serial.printf("Counts per metre: %.0f\n", drive::countsPerMetre());
+  console.printf("Battery: %.2f V\n", battery::volts());
+  console.printf("IMU: %s\n", imu::begin() ? "OK" : "NOT FOUND");
+  console.printf("Counts per metre: %.0f\n", drive::countsPerMetre());
 
   net::begin();
-  Serial.println("Type 'help' for commands.\n");
+  console.println("Type 'help' for commands.\n");
 }
 
 void loop() {
@@ -412,7 +420,7 @@ void loop() {
   readSerial();
 
   if (net::takeConnected()) {
-    Serial.println("[net] connected to the broker");
+    console.println("[net] connected to the broker");
     net::publish("alarmbot/status", "{\"state\":\"online\"}", 1, true);
     publishState();
   }

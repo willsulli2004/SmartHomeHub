@@ -20,12 +20,16 @@ work; when Will had the robot ready with no networking code, he asked for it to 
   encoder decoding and motor scaling come from Will's test sketches.
 - `sensors.h`, `sensors.cpp` — smoothed battery voltage, tilt from the IMU, and the LiDAR (power
   sequencing and the parser from Will's LiDAR test).
+- `console.h`, `console.cpp` — sends the robot's text output to the USB port and to the MQTT topic
+  `alarmbot/log`, so it can be watched over Wi-Fi.
 - `chase.h`, `chase.cpp` — the driving decisions: cruise, turn away from what is close, back out of a
   stall, and a slow fallback with no LiDAR.
 
 **Build tool:**
 - `firmware/robot/robot.py` — new. `compile`, `usb`, `ota` and `monitor`, using the `arduino-cli`
   that comes with the Arduino IDE. Writes `AlarmBot/secrets.h` from `.env` before each build.
+  `monitor` with a COM port reads over USB; with no port it shows the robot's output over Wi-Fi
+  and sends typed commands.
 - `firmware/robot/.env.example` — new. The settings, with placeholder values.
 - `.gitignore` — changed. Ignores the generated `secrets.h`.
 
@@ -71,6 +75,12 @@ the person.
 - JSON is built with `snprintf` and read with two small functions; the contract's messages are flat.
 - Updates over Wi-Fi use `ArduinoOTA`, also part of the board package.
 - The only library outside the board package is "Adafruit LSM6DS", already installed for the tests.
+
+### Results so far
+November 28th, 2026: Will flashed it over USB and reports that it worked, and asked how to watch
+the robot without the cable. The Wi-Fi console was added for that. He also changed two values in
+`config.h` on the bench (`INVERT_MOTOR_R` to true and `LIDAR_FRONT_OFFSET_DEG` to 90); those are
+his edits and were not committed by Claude.
 
 ## How it connects to the rest of the project
 - **Uses M6:** the contract in `docs/robot-integration.md`, the `alarmbot` login, the Hub Robot
@@ -159,6 +169,10 @@ keeps running and still stops when lifted; it reconnects by itself.**
 **16. Power pulled.** While idle, switch the robot off. **Pass: within about 25 seconds Hub Robot
 online turns off.**
 
+**16a. Console over Wi-Fi.** Unplug USB and run `robot.py monitor` with no port. **Pass: the status
+line appears every 10 seconds; typing `status` prints one at once; with the wheels off the ground,
+`start` and `stop` work.**
+
 **17. Update over Wi-Fi.** Change nothing and run the `ota` command. **Pass: it uploads, the robot
 restarts and reconnects.** Then start a chase and try again: **pass: the update is refused.**
 
@@ -178,6 +192,8 @@ Other differences from what was proposed:
   test list above keeps the staged order, and the motors only run in a chase.
 - **The MQTT library the robot guide recommended is not used;** the board package's own client does
   the job with nothing to install.
+- **A console over Wi-Fi was added** (two development topics, `alarmbot/log` and
+  `alarmbot/command`) after Will asked how to monitor the robot without the cable.
 - **A serial console and a local test chase** (`start` / `stop`) were added, so the driving and the
   lift can be tested before the hub is involved.
 - **The hardware test sketches were copied into the repo.**
@@ -194,6 +210,11 @@ Other differences from what was proposed:
 - **No deep sleep.** The robot stays awake, so battery life overnight is not addressed.
 - **Tunable values are in `config.h`, not the app,** which is against the project's own rule. The
   navigation guide's step 6 is the plan for moving them.
+- **The Wi-Fi console shows nothing from before the broker connects,** so boot messages and Wi-Fi
+  problems still need the cable.
+- **The compile check once overwrote the generated `secrets.h`** with placeholder values. `robot.py`
+  now builds the check from a copy. The real header is rewritten by any `usb`, `ota` or plain
+  `compile`.
 - **Updates over Wi-Fi are untested,** including how `arduino-cli` passes the password.
 - **The clock needs internet time servers.** Without them timestamps read 1970; nothing depends on
   them.

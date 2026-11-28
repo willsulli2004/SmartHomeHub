@@ -84,6 +84,17 @@ Every payload is JSON in UTF-8. Timestamps named `ts` are ISO 8601 in UTC with a
 | `alarmbot/telemetry` | robot → all | 0 | no | 5 a second while fleeing, one every 10 s otherwise |
 | `alarmbot/caught` | robot → hub | 1 | no | the robot has been caught |
 
+Two more topics exist for development only. The hub ignores both.
+
+| Topic | From → to | QoS | Retained | What |
+|---|---|---|---|---|
+| `alarmbot/log` | robot → anyone listening | 0 | no | each line of the robot's text output, as plain text |
+| `alarmbot/command` | developer → robot | 1 | no | a console command as plain text, for example `status` |
+
+`firmware/robot/robot.py monitor` uses them to show the robot's output and send commands over
+Wi-Fi. A command can start the motors (`start`), so anything with a login to the broker can make
+the robot drive, which is equally true of `hub/alarm/start`.
+
 ### `hub/alarm/schedule`
 The alarms that are set. Retained, so the robot receives it the moment it subscribes.
 
