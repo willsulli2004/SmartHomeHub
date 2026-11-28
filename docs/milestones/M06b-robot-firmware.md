@@ -1,5 +1,5 @@
 # M06b — Robot firmware
-Status: in review   Branch: `milestone/M06b-robot-firmware`   PR: (added when the PR is opened)
+Status: in review   Branch: `milestone/M06b-robot-firmware`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/10
 
 ## Goal
 The real alarm robot connects to the hub's broker and runs the alarm → chase → caught → stop cycle,
