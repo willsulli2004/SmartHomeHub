@@ -34,3 +34,6 @@ build/
 # Robot firmware: generated from firmware/robot/.env by robot.py; holds credentials
 firmware/robot/AlarmBot/secrets.h
 firmware/robot/.example-sketch/
+
+# Viewer recordings (robot.py view --record)
+*.jsonl
