@@ -7,9 +7,13 @@
 # its own commit, and re-run the compile check.
 esphome==2026.11.0
 
-# Tests (M5). Run with:  .\.venv\Scripts\python.exe -m pytest homeassistant
+# Tests (M5, M6). Run all of them with:  .\.venv\Scripts\python.exe -m pytest
 # hassil is the sentence matcher inside Home Assistant; the alarm phrase tests
 # use it so a phrase that passes here is matched the same way on the live
 # instance. The tests also use PyYAML and Jinja2, which ESPHome installs.
 hassil==3.12.1
 pytest==9.2.0
+
+# MQTT client (M6), used by tools/mock-robot and services/alarm-analytics. The
+# service's own requirements.txt pins the same version for its container.
+paho-mqtt==2.1.0

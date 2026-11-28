@@ -13,8 +13,8 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | M2 | ESPHome satellite base | Nov 23 | merged |
 | M3 | Satellite controls and feedback | Nov 24 | merged |
 | M4 | Core voice | Nov 25 | merged |
-| M5 | Alarms | Nov 27 | in review |
-| M6 | Robot link and local server | Nov 29 | planned |
+| M5 | Alarms | Nov 27 | merged |
+| M6 | Robot link and local server | Nov 29 | in review |
 | M7 | Demo hardening and report | Dec 1 | planned |
 
 Target dates are a plan, not promises. Thanksgiving is November 26th. If Phase A slips, cut from M3's
@@ -147,15 +147,17 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 - **Done when:** a full alarm → chase → caught → stop cycle works with the mock robot, the dashboard
   updates, and the guide is ready for the robot agent.
 
-**Draft MQTT contract** (finalized in `docs/robot-integration.md`; payloads are JSON, timestamps ISO 8601 UTC):
+**MQTT contract.** `docs/robot-integration.md` is now the reference and has every field. In short
+(payloads are JSON, timestamps ISO 8601 UTC):
 
 | Topic | Direction | QoS / retain | Payload |
 |---|---|---|---|
+| `hub/alarm/schedule` | hub → robot | 1 / retained | `{"alarms", "next_epoch", "next", "ts"}` (added in M6, so a sleeping robot knows when to wake) |
 | `hub/alarm/start` | hub → robot | 1 / no | `{"alarm_id", "ts"}` |
 | `hub/alarm/stop` | hub → robot | 1 / no | `{"alarm_id", "reason": "caught\|user\|timeout", "ts"}` |
 | `alarmbot/status` | robot → all | 1 / retained | `{"state": "online"}`; Last Will (sent automatically on disconnect): `{"state": "offline"}` |
 | `alarmbot/state` | robot → all | 1 / retained | `{"state": "idle\|fleeing\|caught\|error", "ts"}` |
-| `alarmbot/telemetry` | robot → all | 0 / no | `{"alarm_id", "ts_ms", "imu", "dist_cm", "odom_m", "battery_v"}` |
+| `alarmbot/telemetry` | robot → all | 0 / no | `{"alarm_id", "ts_ms", "state", "battery_v", "odom_m", "speed_mps", "pitch_deg", "lifted", "nearest_cm", "bearing_deg"}` |
 | `alarmbot/caught` | robot → hub | 1 / no | `{"alarm_id", "ts", "chase_ms", "distance_m"}` |
 
 ### M7 — Demo hardening and report
@@ -251,8 +253,13 @@ agent. Its design is discussed separately; this milestone covers only how the hu
 - **Camera:** out of scope; camera data never leaves the home.
 - **Questions:** may go to the Claude API as text only.
 - **Plugins:** written in Python.
+- **CpE417 "cloud" part:** the self-hosted Mosquitto broker is accepted (Will, November 27th, 2026).
+- **Catches:** Home Assistant trusts the robot's `caught` report at once; the analytics service marks
+  a catch as suspicious afterwards. A stopped service never leaves an alarm ringing.
+- **Robot code:** lives outside this repo, in Will's Arduino folder. As of November 27th it is
+  hardware bring-up only; `docs/robot-integration.md` covers networking, states and sleep from scratch.
 
 ## Open questions
-- Does the CpE417 rubric accept a self-hosted broker as the "cloud" component?
-- Where does the robot's code live, and how far along is the robot?
+- The robot's gear ratio, IMU axis mapping and LiDAR front offset are still to be measured (they
+  decide its odometry, pitch and bearing).
 - Music library source (decide at M11).

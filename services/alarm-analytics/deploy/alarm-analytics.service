@@ -1,0 +1,25 @@
+# systemd unit for the alarm analytics service on its Proxmox container.
+# Install steps: docs/setup/alarm-analytics.md.
+#
+# Settings (broker address and login) come from /etc/alarm-analytics.env, which
+# only root can read. They are never written in this file.
+
+[Unit]
+Description=Smart Home Hub alarm analytics
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alarm-analytics
+WorkingDirectory=/opt/alarm-analytics
+EnvironmentFile=/etc/alarm-analytics.env
+Environment=ANALYTICS_DB=/var/lib/alarm-analytics/history.db
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/alarm-analytics/venv/bin/python -m alarm_analytics
+Restart=always
+RestartSec=5
+StateDirectory=alarm-analytics
+
+[Install]
+WantedBy=multi-user.target

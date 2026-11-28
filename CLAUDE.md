@@ -104,6 +104,8 @@ an explicit test checklist.
 - **Home Assistant config:** `.\.venv\Scripts\python.exe -m pytest homeassistant` checks the custom
   sentences (with `hassil`, Home Assistant's own matcher) and the template logic. It cannot check that
   the live instance loads a package; Will runs "Check configuration" after copying.
+- **All Python tests at once:** `.\.venv\Scripts\python.exe -m pytest` from the repo folder runs the
+  Home Assistant, mock robot and analytics tests (`pytest.ini` lists them).
 - **Python:** `pytest` for every service and plugin. Logic must be testable without hardware: mock MQTT,
   fake HA responses, the mock robot. Jarvis Core gets a text console (Phase B) so conversations can be
   tested by typing.
@@ -218,7 +220,7 @@ LED supply first; a diode in the LED power lead or a level shifter on the data w
                                   helpers), sounds/, secrets.example.yaml
     hardware/enclosure/           STEP files for the 3D printed enclosure
     homeassistant/                HA packages, custom sentences, dashboards, tests/
-    services/alarm-analytics/     robot telemetry processing (M6)
+    services/alarm-analytics/     robot telemetry processing (M6); runs in its own Proxmox container
     jarvis-core/                  conversation agent + plugin platform (Phase B)
     tools/mock-robot/             mock robot for testing the hub side (M6)
     tests/hardware/arduino/       legacy Arduino component tests

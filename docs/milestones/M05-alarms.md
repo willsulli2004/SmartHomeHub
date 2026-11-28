@@ -1,5 +1,5 @@
 # M05 — Alarms
-Status: in review   Branch: `milestone/M05-alarms`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/7
+Status: merged   Branch: `milestone/M05-alarms`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/7
 
 ## Goal
 The CpE417 alarm feature on the hub side: an alarm set by voice fires on time, rings on the
