@@ -1,5 +1,5 @@
 # M06c — Robot navigation
-Status: in progress   Branch: `milestone/M06c-robot-navigation`   PR: (added when the PR is opened)
+Status: in progress   Branch: `milestone/M06c-robot-navigation`   PR: https://github.com/willsulli2004/SmartHomeHub/pull/11
 
 ## Goal
 The robot runs away with purpose instead of wandering: it gets away from where it started (beside the
