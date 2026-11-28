@@ -354,5 +354,6 @@ def test_dashboard_only_uses_entities_the_project_defines() -> None:
     used = _entities(yaml.safe_load(DASHBOARD.read_text("utf-8")))
     assert used, "the dashboard should reference entities"
     # Anything not from the package must be one of the satellite's entities.
+    # (or one of the robot entities, which services/alarm-analytics checks by name)
     for entity in used - known:
-        assert entity.split(".", 1)[1].startswith("satellite_hub_"), entity
+        assert entity.split(".", 1)[1].startswith(("satellite_hub_", "hub_robot_")), entity

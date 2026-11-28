@@ -1,0 +1,85 @@
+# Hub robot link (M6): whether the alarm robot is online, what it is doing, and
+# the alarm schedule the robot reads to know when to wake up.
+#
+# Goes on Home Assistant at /config/packages/hub_robot.yaml (see homeassistant/README.md).
+#
+# The MQTT contract is in docs/robot-integration.md. The alarm itself, including
+# hub/alarm/start, hub/alarm/stop and the "caught" handling, is in
+# packages/hub_alarms.yaml and does not depend on anything here.
+#
+# These two entities are defined here, not by the alarm analytics service, so
+# the app still shows whether the robot is online when that service is stopped.
+# Everything else about the robot (battery, wake-up history) comes from the
+# service through MQTT discovery and appears under a "Hub Robot" device.
+
+mqtt:
+  binary_sensor:
+    # On while the robot is connected to the broker. The robot publishes
+    # "online" when it connects; the broker publishes "offline" for it (its Last
+    # Will) when the connection is lost. Entity id: binary_sensor.hub_robot_online
+    - name: Hub Robot online
+      unique_id: hub_robot_online
+      state_topic: alarmbot/status
+      value_template: "{{ 'ON' if value_json.state == 'online' else 'OFF' }}"
+      device_class: connectivity
+
+  sensor:
+    # idle, fleeing, caught or error. Entity id: sensor.hub_robot_state
+    - name: Hub Robot state
+      unique_id: hub_robot_state
+      state_topic: alarmbot/state
+      value_template: "{{ value_json.state }}"
+      icon: mdi:robot
+
+automation:
+  # Keeps a retained message on hub/alarm/schedule that lists the alarms that are
+  # set and the moment the next one fires. The robot sleeps through the night
+  # with its radio off; when it wakes and connects, the broker hands it this
+  # message at once, so it knows how long it can sleep before the next alarm.
+  #
+  # Published again whenever an alarm slot changes, and when Home Assistant
+  # starts. "alarms" are clock times in the home's time zone, for people reading
+  # the message; the robot should use "next_epoch" (seconds since 1970, UTC).
+  - id: hub_robot_publish_schedule
+    alias: "Hub robot: publish the alarm schedule"
+    mode: queued
+    trigger:
+      - trigger: state
+        entity_id:
+          - input_boolean.hub_alarm_1
+          - input_boolean.hub_alarm_2
+          - input_boolean.hub_alarm_3
+          - input_boolean.hub_alarm_4
+          - input_boolean.hub_alarm_5
+          - input_datetime.hub_alarm_1
+          - input_datetime.hub_alarm_2
+          - input_datetime.hub_alarm_3
+          - input_datetime.hub_alarm_4
+          - input_datetime.hub_alarm_5
+      - trigger: homeassistant
+        event: start
+    action:
+      - action: mqtt.publish
+        data:
+          topic: hub/alarm/schedule
+          qos: 1
+          retain: true
+          payload: >-
+            {% set clock = now().hour * 60 + now().minute %}
+            {% set this_minute = now().replace(second=0, microsecond=0).timestamp() | int %}
+            {% set ns = namespace(items=[]) %}
+            {% for i in range(1, 6) %}
+              {% if is_state('input_boolean.hub_alarm_' ~ i, 'on') %}
+                {% set s = states('input_datetime.hub_alarm_' ~ i) %}
+                {% set wait = ((s[0:2] | int) * 60 + (s[3:5] | int) - clock) % 1440 %}
+                {% set wait = 1440 if wait == 0 else wait %}
+                {% set ns.items = ns.items + [{'time': s[0:5], 'epoch': this_minute + wait * 60}] %}
+              {% endif %}
+            {% endfor %}
+            {% set soonest = ns.items | sort(attribute='epoch') %}
+            {{ {
+              'alarms': soonest | map(attribute='time') | list,
+              'next_epoch': soonest[0].epoch if soonest else none,
+              'next': (soonest[0].epoch | timestamp_custom('%Y-%m-%dT%H:%M:%SZ', false)) if soonest else none,
+              'ts': utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+            } | to_json }}
