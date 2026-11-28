@@ -142,6 +142,49 @@ def compile_example(cli: str) -> None:
     compile_sketch(cli, copy, build_dir().with_name("AlarmBotExampleBuild"))
 
 
+def find_espota() -> str:
+    """Locate espota, the Wi-Fi upload tool that comes with the ESP32 board package."""
+    packages = Path(os.environ.get("LOCALAPPDATA", "")) / "Arduino15" / "packages" / "esp32" / "hardware" / "esp32"
+    found = sorted(packages.glob("*/tools/espota.exe")) or sorted(packages.glob("*/tools/espota.py"))
+    if not found:
+        raise SystemExit(f"espota not found under {packages}. Is the ESP32 board package installed?")
+    return str(found[-1])  # the newest installed version
+
+
+def upload_over_wifi(values: dict[str, str]) -> None:
+    """Send the firmware that was just built to the robot over Wi-Fi.
+
+    arduino-cli's own network upload only accepts robots it has discovered by
+    itself and rejects a name or address it is given, so this calls espota
+    directly. espota asks the robot to fetch the firmware from this PC, which
+    means Windows may ask once whether to let it accept connections: allow it on
+    private networks.
+    """
+    import socket
+
+    address = values.get("ROBOT_ADDRESS") or "alarmbot.local"
+    try:
+        ip = socket.gethostbyname(address)
+    except OSError:
+        raise SystemExit(
+            f"Cannot find the robot at '{address}'. Is it switched on and on Wi-Fi?\n"
+            "If it is, set ROBOT_ADDRESS in firmware/robot/.env to its IP address. The robot prints\n"
+            "its address when it connects (see it with: robot.py monitor COMx, or robot.py monitor)."
+        ) from None
+
+    firmware = build_dir() / "AlarmBot.ino.bin"
+    if not firmware.is_file():
+        raise SystemExit(f"Built firmware not found at {firmware}.")
+
+    espota = find_espota()
+    password = values["OTA_PASSWORD"]
+    command = [espota, "-i", ip, "-p", "3232", "-a", password, "-f", str(firmware), "-r"]
+    if espota.endswith(".py"):
+        command.insert(0, sys.executable)
+    print(f"Uploading to the robot at {address} over Wi-Fi. It must be idle; it restarts when done.", flush=True)
+    run(command, hide=password)
+
+
 def wifi_monitor(values: dict[str, str]) -> None:
     """Show the robot's output over Wi-Fi, and send it what is typed.
 
@@ -238,16 +281,7 @@ def main() -> None:
             raise SystemExit("Give the COM port, for example: robot.py usb COM7")
         run([cli, "upload", "--fqbn", FQBN, "--build-path", str(build_dir()), "--port", args.port, str(SKETCH)])
     elif args.action == "ota":
-        address = values.get("ROBOT_ADDRESS") or "alarmbot.local"
-        password = values["OTA_PASSWORD"]
-        run(
-            [
-                cli, "upload", "--fqbn", FQBN, "--build-path", str(build_dir()),
-                "--port", address, "--protocol", "network",
-                "--upload-field", f"password={password}", str(SKETCH),
-            ],
-            hide=password,
-        )
+        upload_over_wifi(values)
 
 
 if __name__ == "__main__":

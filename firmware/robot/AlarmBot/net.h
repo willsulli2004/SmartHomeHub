@@ -23,6 +23,7 @@ void begin();
 void update(bool allow_update);
 
 bool wifiConnected();
+String address();   // the robot's IP address on the Wi-Fi, as text
 bool mqttConnected();
 
 // True once each time the broker connection is made (including reconnects), so

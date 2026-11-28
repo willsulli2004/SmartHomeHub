@@ -420,7 +420,8 @@ void loop() {
   readSerial();
 
   if (net::takeConnected()) {
-    console.println("[net] connected to the broker");
+    // The address is what ROBOT_ADDRESS in .env needs if alarmbot.local is not found.
+    console.printf("[net] connected to the broker; this robot's address is %s\n", net::address().c_str());
     net::publish("alarmbot/status", "{\"state\":\"online\"}", 1, true);
     publishState();
   }

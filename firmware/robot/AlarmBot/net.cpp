@@ -109,6 +109,7 @@ void update(bool allow_update) {
 }
 
 bool wifiConnected() { return WiFi.status() == WL_CONNECTED; }
+String address() { return WiFi.localIP().toString(); }
 bool mqttConnected() { return connected; }
 
 bool takeConnected() {

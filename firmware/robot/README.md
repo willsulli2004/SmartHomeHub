@@ -51,7 +51,9 @@ Replace `COM7` with the robot's port (Device Manager → Ports, with the cable i
 
 - **The first upload must be over USB.** After that the robot accepts updates over Wi-Fi.
 - **Wi-Fi updates** need the robot switched on, connected, and **not in a chase**: it refuses updates
-  while moving. It restarts by itself when the update finishes. If `alarmbot.local` is not found, put
+  while moving. It restarts by itself when the update finishes. The first time, Windows may ask
+  whether to let the upload tool (`espota`) accept connections: allow it on private networks, because
+  the robot fetches the firmware from this PC. If `alarmbot.local` is not found, put
   the robot's IP address in `ROBOT_ADDRESS` in `.env`.
 - **Roll back** by checking out an older commit and uploading again. If a bad build stops the robot
   joining Wi-Fi, upload over USB.
