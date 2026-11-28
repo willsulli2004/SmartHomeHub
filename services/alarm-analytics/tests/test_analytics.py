@@ -304,7 +304,7 @@ def test_results_are_empty_but_valid_before_any_alarm(analytics: Analytics) -> N
     assert results["alarms_7d"] == 0
     assert results["battery_v"] is None
     assert results["battery_low"] is False
-    assert (results["min_lift_s"], results["battery_warn_v"]) == (1.0, 6.8)
+    assert (results["min_lift_s"], results["battery_warn_v"]) == (0.5, 6.8)
 
 
 def test_entity_ids_follow_the_device_and_entity_names() -> None:

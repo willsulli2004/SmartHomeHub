@@ -52,6 +52,43 @@ void onMqttEvent(void *, esp_event_base_t, int32_t event_id, void *event_data) {
   }
 }
 
+// ---- sending ----
+//
+// Messages are sent by a task of their own, so the main loop, which drives the
+// motors and watches for a lift, never waits on the network.
+//
+// The first version handed messages to the MQTT client's "enqueue" call. That
+// client only sends about one queued message per second, and telemetry arrives
+// five times a second, so a backlog built up during a chase and "caught" sat
+// behind it: the motors stopped at once but the alarm took another 20 seconds to
+// stop (found by Will on November 28th, 2026). This task calls the client's
+// direct "publish" instead, which sends immediately, and keeps messages that
+// must arrive in a queue of their own that is always emptied first.
+struct Outgoing {
+  char topic[40];
+  char payload[320];
+  uint8_t qos;
+  bool retain;
+};
+QueueHandle_t urgent = nullptr;    // QoS 1: caught, state, online
+QueueHandle_t routine = nullptr;   // QoS 0: telemetry and log lines
+
+void senderTask(void *) {
+  Outgoing message;
+  for (;;) {
+    // Anything urgent goes first; otherwise wait briefly for a routine message.
+    if (xQueueReceive(urgent, &message, 0) != pdTRUE &&
+        xQueueReceive(routine, &message, pdMS_TO_TICKS(20)) != pdTRUE) {
+      continue;
+    }
+    if (client == nullptr) continue;
+    if (message.qos == 0 && !connected) continue;
+    // For QoS 1 the client keeps the message itself and re-sends it after a
+    // reconnect, so nothing more is needed here if the broker is away.
+    esp_mqtt_client_publish(client, message.topic, message.payload, 0, message.qos, message.retain ? 1 : 0);
+  }
+}
+
 void startMqtt() {
   esp_mqtt_client_config_t config = {};
   config.broker.address.hostname = SECRET_MQTT_HOST;
@@ -67,6 +104,9 @@ void startMqtt() {
   config.session.last_will.qos = 1;
   config.session.last_will.retain = 1;
   config.network.reconnect_timeout_ms = 3000;
+  // Give up on a stuck send after 3 seconds instead of the default 10, so a
+  // dropped Wi-Fi link is noticed quickly.
+  config.network.timeout_ms = 3000;
   config.buffer.size = 1024;
 
   client = esp_mqtt_client_init(&config);
@@ -89,6 +129,9 @@ void startOta() {
 
 void begin() {
   inbox = xQueueCreate(6, sizeof(Incoming));
+  urgent = xQueueCreate(8, sizeof(Outgoing));
+  routine = xQueueCreate(12, sizeof(Outgoing));
+  xTaskCreate(senderTask, "mqtt-send", 4096, nullptr, 1, nullptr);
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(ROBOT_HOSTNAME);
   WiFi.setAutoReconnect(true);
@@ -123,10 +166,24 @@ bool receive(Incoming &message) {
 }
 
 void publish(const char *topic, const char *payload, int qos, bool retain) {
-  if (client == nullptr) return;
-  if (qos == 0 && !connected) return;  // telemetry is not worth keeping for later
-  // "enqueue" hands the message to the client's task and returns immediately.
-  esp_mqtt_client_enqueue(client, topic, payload, 0, qos, retain ? 1 : 0, true);
+  if (client == nullptr || urgent == nullptr) return;
+  if (qos == 0 && !connected) return;  // telemetry and log lines are not worth keeping for later
+
+  Outgoing message = {};
+  strlcpy(message.topic, topic, sizeof(message.topic));
+  strlcpy(message.payload, payload, sizeof(message.payload));
+  message.qos = static_cast<uint8_t>(qos);
+  message.retain = retain;
+
+  if (qos > 0) {
+    // Must arrive (caught, state, online): its own queue, sent before anything else.
+    xQueueSend(urgent, &message, 0);
+  } else if (xQueueSend(routine, &message, 0) != pdTRUE) {
+    // The routine queue is full: drop the oldest reading to make room for the newest.
+    Outgoing dropped;
+    xQueueReceive(routine, &dropped, 0);
+    xQueueSend(routine, &message, 0);
+  }
 }
 
 void isoNow(char *out, size_t size) {

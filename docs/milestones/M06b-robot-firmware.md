@@ -82,6 +82,19 @@ the robot without the cable. The Wi-Fi console was added for that. He also chang
 `config.h` on the bench (`INVERT_MOTOR_R` to true and `LIDAR_FRONT_OFFSET_DEG` to 90); those are
 his edits and were not committed by Claude.
 
+Later on November 28th: the update over Wi-Fi and the Wi-Fi console both work, and the robot is
+connected to Home Assistant. Will found that a catch stopped the motors at once but the alarm took
+about another 20 seconds to stop. The MQTT client's "enqueue" call sends roughly one queued message
+a second, and telemetry is produced five times a second, so `caught` waited behind a backlog. The
+firmware now sends from its own task with the client's direct publish, and messages that must
+arrive have a queue that is always emptied first. Not yet re-tested by Will.
+
+The hub's catch check was also adjusted: its default "shortest real lift" was 1.0 s, but the robot
+only reports about 0.8 to 1.0 s of lift before a catch, so real catches would have read
+`suspicious`. The default is now 0.5 s.
+
+Will also reports that the navigation needs a lot of work; `docs/robot-navigation.md` is the plan.
+
 ## How it connects to the rest of the project
 - **Uses M6:** the contract in `docs/robot-integration.md`, the `alarmbot` login, the Hub Robot
   entities and dashboard page, and the analytics service, which checks the lift the robot reports.

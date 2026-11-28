@@ -46,7 +46,12 @@ SETTINGS: dict[str, Setting] = {
         Setting(
             "min_lift_s",
             "Shortest real lift",
-            default=1.0,
+            # The real robot reports `lifted` from 0.2 s into a lift and says
+            # "caught" at 1.2 s, so a real catch shows about 0.8 to 1.0 s of
+            # lift in the telemetry. A knock shows 0.2 s or less. 0.5 sits
+            # between the two. (It was 1.0 until the first runs with the real
+            # robot, which would have marked every real catch suspicious.)
+            default=0.5,
             minimum=0.2,
             maximum=3.0,
             step=0.1,

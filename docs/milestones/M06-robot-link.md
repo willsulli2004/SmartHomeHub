@@ -79,7 +79,7 @@ No satellite firmware changed. The running firmware stays 0.6.0 (`sat-hub-v6`).
 | Wake-up delay | seconds from `start` to `stop`, whatever the reason |
 | Time to catch | the same span, only for catches that looked real |
 | Distance | the robot's `caught` report, or its last odometry |
-| Catch check | `real` if the robot reported being held for at least 1.0 s before `caught`; otherwise `suspicious` |
+| Catch check | `real` if the robot reported being held for at least 0.5 s before `caught` (1.0 s until the first real-robot runs); otherwise `suspicious` |
 | Battery | the middle value of the last 15 readings; **low** below 6.8 V, **critical** at 6.4 V |
 | 7-day figures | average wake-up delay and time to catch; counts of alarms, real and suspicious catches |
 
@@ -89,7 +89,7 @@ clock. The lift is timed from the robot's millisecond counter, so slow Wi-Fi doe
 ### Settings in the app
 | Setting | Default | Where |
 |---|---|---|
-| Shortest real lift | 1.0 s | Hub Robot device, and the Robot page |
+| Shortest real lift | 0.5 s | Hub Robot device, and the Robot page |
 | Battery warning level | 6.8 V | Hub Robot device, and the Robot page |
 
 Both are remembered by the service across restarts.
@@ -189,7 +189,7 @@ cycle of test 6 still completes; the Hub Robot entities read unavailable, while 
 state still work.** Start the service again.
 
 **14. Settings.** On the Robot page set "Shortest lift that counts as a catch" to 0.2 and repeat test
-8. **Pass: the bump now reads `real`.** Set it back to 1.0.
+8. **Pass: the bump now reads `real`.** Set it back to 0.5.
 
 **15. A real alarm.** With the mock running (`catch`), set an alarm by voice for two minutes ahead.
 **Pass: `hub/alarm/schedule` shows it, the mock prints the schedule, and the cycle of test 6 runs

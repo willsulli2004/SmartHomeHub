@@ -12,7 +12,7 @@ alarm works the same with the service stopped.
 | Wake-up delay | seconds from `hub/alarm/start` to `hub/alarm/stop`, whatever the reason |
 | Time to catch | the same span, for alarms stopped by a catch that looked real |
 | Distance | from the robot's `caught` report, or its last odometry reading |
-| Catch check | `real` if the robot reported being held for at least the "Shortest real lift" (1.0 s by default) before saying caught; otherwise `suspicious`, which is what a knock looks like |
+| Catch check | `real` if the robot reported being held for at least the "Shortest real lift" (0.5 s by default) before saying caught; otherwise `suspicious`, which is what a knock looks like |
 | Battery | the middle value of the last 15 readings, so the dip when the motors start raises no false warning; **low** below 6.8 V, **critical** at 6.4 V |
 | 7-day figures | average wake-up delay and time to catch, and counts of alarms, real catches and suspicious catches |
 
@@ -28,7 +28,7 @@ card), and are remembered:
 
 | Setting | Default | Meaning |
 |---|---|---|
-| Shortest real lift | 1.0 s | how long the robot must have been held for a catch to count as real |
+| Shortest real lift | 0.5 s | how long the robot must have been held for a catch to count as real |
 | Battery warning level | 6.8 V | Battery low turns on below this |
 
 ## Run it on the PC

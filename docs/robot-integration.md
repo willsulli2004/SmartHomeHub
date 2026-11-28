@@ -254,7 +254,7 @@ Rules:
   before the robot publishes `caught`. Stop the motors as soon as the lift begins, not when it is
   confirmed, so the wheels are not spinning in someone's hands.
 - **The hub double-checks the lift.** It reads `lifted` in the telemetry before `caught`. If the
-  robot reported `lifted: true` for less than about 1 second, the catch is recorded as *suspicious*
+  robot reported `lifted: true` for less than about half a second, the catch is recorded as *suspicious*
   on the dashboard (a knock, not a pick-up). The alarm still stops. So send `lifted: true` in
   telemetry from the moment the lift begins, and keep sending telemetry while being held.
 - **A chase ends by itself.** If no `stop` arrives, stop after 15 minutes regardless. The hub's own
