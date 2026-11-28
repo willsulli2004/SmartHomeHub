@@ -5,6 +5,13 @@ Status: in review   Branch: `milestone/M06-robot-link`   PR: https://github.com/
 A full alarm → chase → caught → stop cycle works against a mock robot, the app shows the robot and its
 wake-up history, and the robot's builder has a guide that is enough to bring a real robot online.
 
+## Where it stands
+Will's first run of the analytics service on November 27th, 2026 connected to the broker, which
+proves the address and the `alarm-analytics` login, and then crashed. The MQTT library calls back on
+its own thread, and the history database only accepts the thread that opened it. The service now
+queues what arrives and handles it on the main thread (`runner.py`), with a test that reproduces
+the crash. The mock robot got a lock for the same two-thread situation. Not yet re-run by Will.
+
 ## What was built
 **The contract and guide:**
 - `docs/robot-integration.md` — new. The final MQTT contract, delivery guarantees, online/offline,
@@ -24,12 +31,14 @@ wake-up history, and the robot's builder has a guide that is enough to bring a r
   looked real, and battery health.
 - `alarm_analytics/store.py` — alarm history and settings in a SQLite file.
 - `alarm_analytics/discovery.py` — announces 16 entities to Home Assistant under a "Hub Robot" device.
+- `alarm_analytics/runner.py` — passes what arrives from the broker to the analytics on one thread.
 - `alarm_analytics/contract.py`, `envfile.py`, `__main__.py` — topics, settings, and the broker
   connection.
 - `deploy/alarm-analytics.service` — the systemd unit for the container.
 - `requirements.txt`, `.env.example`, `README.md`, `conftest.py`.
-- `tests/test_analytics.py` (43 checks) and `tests/test_end_to_end.py` (8 checks: whole alarms with
-  the mock robot through an in-memory broker).
+- `tests/test_analytics.py` (43 checks), `tests/test_end_to_end.py` (8 checks: whole alarms with
+  the mock robot through an in-memory broker) and `tests/test_runner.py` (10 checks: events arriving
+  on another thread).
 
 **Home Assistant:**
 - `homeassistant/packages/hub_robot.yaml` — new. **Hub Robot online** and **Hub Robot state** from the
@@ -136,7 +145,7 @@ Claude has no access to the broker, Home Assistant or Proxmox, so everything bel
 Will. Pass criteria are in bold. Keep the MQTT listener open on `hub/alarm/#` and, in a second tab,
 `alarmbot/#`.
 
-**1. All tests.** `.\.venv\Scripts\python.exe -m pytest`. **Pass: 227 passed.**
+**1. All tests.** `.\.venv\Scripts\python.exe -m pytest`. **Pass: 237 passed.**
 
 **2. Package loads.** Section 15.1. **Pass: the configuration check is valid, the two `hub_robot`
 entities exist, and switching an alarm on or off publishes a new `hub/alarm/schedule`.**
@@ -194,7 +203,7 @@ active after a container reboot, and the 7-day figures count up from zero there*
 file is not moved).
 
 Checks Claude ran:
-- `pytest`: 227 passed (159 Home Assistant, 17 mock robot, 51 analytics).
+- `pytest`: 237 passed (159 Home Assistant, 17 mock robot, 61 analytics).
 - Both programs start far enough to print their help text and to report missing settings by name.
 - Not run: anything against a real broker, Home Assistant, Proxmox, or the robot. The firmware
   skeleton in the guide has not been compiled.
@@ -209,7 +218,13 @@ Checks Claude ran:
   the field for fixing them differs between Home Assistant versions.
 - **`pytest.ini` was added** so one command runs every test.
 
+- **The service handles broker events through a queue** (`runner.py`), added after the first real
+  run crashed.
+
 ## Known limitations / follow-ups
+- **The tests still use no real MQTT connection.** The thread bug got through because every test
+  called the logic directly. The new tests cross threads, but connection handling itself (reconnects,
+  the Last Will, discovery as Home Assistant reads it) is only proven on the real broker.
 - **Nothing here has touched the real broker.** The two M1 logins, MQTT discovery and the Last Will
   are all first exercised by Will's tests 3 to 5.
 - **MQTT discovery details are from documentation.** If the Hub Robot entities do not appear, or

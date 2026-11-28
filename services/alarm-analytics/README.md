@@ -54,6 +54,7 @@ installs the service under systemd, using `deploy/alarm-analytics.service`.
 
 - `tests/test_analytics.py`: the logic, with no broker.
 - `tests/test_end_to_end.py`: whole alarms with the mock robot, through an in-memory broker.
+- `tests/test_runner.py`: events arriving on the MQTT library's thread.
 
 ## Files
 | File | What |
@@ -62,6 +63,7 @@ installs the service under systemd, using `deploy/alarm-analytics.service`.
 | `alarm_analytics/analytics.py` | what it works out |
 | `alarm_analytics/store.py` | the SQLite history and settings |
 | `alarm_analytics/discovery.py` | the entities announced to Home Assistant |
+| `alarm_analytics/runner.py` | hands broker events to the logic on one thread |
 | `alarm_analytics/__main__.py` | connects the logic to the broker |
 | `deploy/alarm-analytics.service` | the systemd unit for the container |
 | `requirements.txt` | the one library it needs, `paho-mqtt` |

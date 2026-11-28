@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,10 @@ def main() -> None:
     if args.catch_after is not None:
         scenario = dataclasses.replace(scenario, catch_after_s=args.catch_after)
     robot = MockRobot(scenario, boot_time=time.time())
+    # The MQTT library calls back on its own thread while the loop below ticks the
+    # robot on this one. The lock makes sure only one of them touches the robot at
+    # a time.
+    lock = threading.Lock()
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="alarmbot-mock")
     client.username_pw_set(settings.username, settings.password)
@@ -77,7 +82,8 @@ def main() -> None:
         print("Connected. Waiting for the hub to start an alarm.")
         for topic in contract.SUBSCRIPTIONS:
             client.subscribe(topic, qos=1)
-        publish(robot.on_connect(time.time()))
+        with lock:
+            publish(robot.on_connect(time.time()))
 
     def on_message(client: mqtt.Client, userdata: Any, message: mqtt.MQTTMessage) -> None:
         try:
@@ -87,7 +93,8 @@ def main() -> None:
             return
         print(f"<- {message.topic} {json.dumps(payload)}")
         if isinstance(payload, dict):
-            publish(robot.on_message(message.topic, payload, time.time()))
+            with lock:
+                publish(robot.on_message(message.topic, payload, time.time()))
 
     client.on_connect = on_connect
     client.on_message = on_message
@@ -97,7 +104,8 @@ def main() -> None:
     client.loop_start()
     try:
         while not robot.wants_disconnect:
-            publish(robot.tick(time.time()))
+            with lock:
+                publish(robot.tick(time.time()))
             time.sleep(TICK_S)
         # A real robot that loses power says nothing; the broker notices after
         # the keepalive runs out and sends the Last Will. To keep the test
