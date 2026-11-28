@@ -11,6 +11,7 @@ value to hub/analytics/set/<key>.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -88,12 +89,29 @@ _BINARY_SENSORS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+def entity_id(domain: str, name: str) -> str:
+    """The entity id Home Assistant gives an entity: the device name plus its name.
+
+    "Hub Robot" + "Last wake-up delay" becomes sensor.hub_robot_last_wake_up_delay.
+    The dashboard in homeassistant/dashboards names entities this way, and a test
+    checks the two stay in step.
+    """
+    words = re.sub(r"[^a-z0-9]+", "_", f"{DEVICE['name']} {name}".lower()).strip("_")
+    return f"{domain}.{words}"
+
+
+def entity_ids() -> set[str]:
+    """Every entity id the service creates in Home Assistant."""
+    ids = {entity_id("sensor", name) for _, name, *_ in _SENSORS}
+    ids |= {entity_id("binary_sensor", name) for _, name, _ in _BINARY_SENSORS}
+    ids |= {entity_id("number", setting.name) for setting in SETTINGS.values()}
+    return ids
+
+
 def _base(domain: str, key: str, name: str) -> dict[str, Any]:
     return {
         "name": name,
         "unique_id": f"hub_robot_{key}",
-        # Fixes the entity id, so the dashboard in homeassistant/dashboards can name it.
-        "default_entity_id": f"{domain}.hub_robot_{key}",
         "state_topic": contract.TOPIC_RESULTS,
         "availability_topic": contract.TOPIC_AVAILABILITY,
         "device": DEVICE,

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -282,7 +283,6 @@ def test_every_discovered_entity_reads_a_field_the_results_contain(analytics: An
         assert key in results, key
         assert "value_json." + key in config["value_template"]
         domain = message.topic.split("/")[1]
-        assert config["default_entity_id"] == f"{domain}.hub_robot_{key}"
         assert message.topic == f"homeassistant/{domain}/hub_robot/{key}/config"
         assert config["device"]["name"] == "Hub Robot"
         json.loads(message.encode())  # valid JSON
@@ -305,3 +305,35 @@ def test_results_are_empty_but_valid_before_any_alarm(analytics: Analytics) -> N
     assert results["battery_v"] is None
     assert results["battery_low"] is False
     assert (results["min_lift_s"], results["battery_warn_v"]) == (1.0, 6.8)
+
+
+def test_entity_ids_follow_the_device_and_entity_names() -> None:
+    assert discovery.entity_id("sensor", "Last wake-up delay") == "sensor.hub_robot_last_wake_up_delay"
+    assert discovery.entity_id("number", "Shortest real lift") == "number.hub_robot_shortest_real_lift"
+    assert len(discovery.entity_ids()) == len(discovery.messages())
+
+
+def test_the_dashboard_only_names_robot_entities_that_exist() -> None:
+    import yaml  # PyYAML, installed with the development tools
+
+    repo = Path(__file__).resolve().parents[3]
+    dashboard = yaml.safe_load((repo / "homeassistant" / "dashboards" / "hub_alarms.yaml").read_text("utf-8"))
+
+    def entities(node: Any) -> set[str]:
+        found: set[str] = set()
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in ("entity", "entity_id") and isinstance(value, str):
+                    found.add(value)
+                else:
+                    found |= entities(value)
+        elif isinstance(node, list):
+            for item in node:
+                found |= entities(item)
+        return found
+
+    # The two status entities come from homeassistant/packages/hub_robot.yaml.
+    known = discovery.entity_ids() | {"binary_sensor.hub_robot_online", "sensor.hub_robot_state"}
+    used = {e for e in entities(dashboard) if e.split(".", 1)[1].startswith("hub_robot_")}
+    assert used, "the dashboard should show the robot"
+    assert used <= known, sorted(used - known)

@@ -9,8 +9,12 @@
 # To set an alarm: pick a slot's time, then switch that slot on. It rings the
 # next time the clock reaches that time and then switches itself off.
 #
+# The second page, Robot (M6), shows the alarm robot: whether it is online, its
+# battery, and the wake-up history worked out by the alarm analytics service.
+#
 # The satellite_hub_... entities are the settings firmware 0.6.0 adds to the
-# satellite. If your entity ids differ, a card shows "Entity not available";
+# satellite; the hub_robot_... entities come from packages/hub_robot.yaml and
+# from the alarm analytics service. If your entity ids differ, a card shows "Entity not available";
 # edit that row in the dashboard and pick the right entity.
 
 title: Alarms
@@ -112,3 +116,79 @@ views:
             name: Hub is ringing
           - entity: input_text.hub_alarm_active_id
             name: Last alarm id
+
+  - title: Robot
+    path: robot
+    icon: mdi:robot
+    cards:
+      - type: entities
+        title: Robot
+        show_header_toggle: false
+        entities:
+          - entity: binary_sensor.hub_robot_online
+            name: Online
+          - entity: sensor.hub_robot_state
+            name: Doing
+          - entity: sensor.hub_robot_battery
+            name: Battery
+          - entity: sensor.hub_robot_battery_level
+            name: Battery level
+          - entity: binary_sensor.hub_robot_battery_low
+            name: Battery low
+          - entity: binary_sensor.hub_robot_battery_critical
+            name: Battery critical
+
+      - type: entities
+        title: Last alarm
+        show_header_toggle: false
+        entities:
+          - entity: sensor.hub_robot_last_stop_reason
+            name: Stopped by
+          - entity: sensor.hub_robot_last_wake_up_delay
+            name: Wake-up delay
+          - entity: sensor.hub_robot_last_time_to_catch
+            name: Time to catch
+          - entity: sensor.hub_robot_last_distance
+            name: Distance the robot ran
+          - entity: sensor.hub_robot_last_catch
+            name: Catch check
+
+      - type: entities
+        title: Last 7 days
+        show_header_toggle: false
+        entities:
+          - entity: sensor.hub_robot_wake_up_delay_7_day_average
+            name: Average wake-up delay
+          - entity: sensor.hub_robot_time_to_catch_7_day_average
+            name: Average time to catch
+          - entity: sensor.hub_robot_alarms_in_7_days
+            name: Alarms
+          - entity: sensor.hub_robot_catches_in_7_days
+            name: Real catches
+          - entity: sensor.hub_robot_suspicious_catches_in_7_days
+            name: Suspicious catches
+
+      - type: history-graph
+        title: Wake-up history (7 days)
+        hours_to_show: 168
+        entities:
+          - entity: sensor.hub_robot_last_wake_up_delay
+            name: Wake-up delay
+          - entity: sensor.hub_robot_last_time_to_catch
+            name: Time to catch
+
+      - type: history-graph
+        title: Battery (24 hours)
+        hours_to_show: 24
+        entities:
+          - entity: sensor.hub_robot_battery
+            name: Battery
+
+      - type: entities
+        title: Robot settings
+        show_header_toggle: false
+        entities:
+          - entity: number.hub_robot_shortest_real_lift
+            name: Shortest lift that counts as a catch
+          - entity: number.hub_robot_battery_warning_level
+            name: Warn when the battery is below
