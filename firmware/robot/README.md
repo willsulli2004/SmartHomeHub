@@ -46,6 +46,7 @@ PowerShell, in the repo folder.
 | `.\.venv\Scripts\python.exe firmware/robot/robot.py ota` | builds and uploads over Wi-Fi |
 | `.\.venv\Scripts\python.exe firmware/robot/robot.py monitor COM7` | shows the robot's output over the USB cable |
 | `.\.venv\Scripts\python.exe firmware/robot/robot.py monitor` | shows the robot's output over Wi-Fi, and sends it what you type |
+| `.\.venv\Scripts\python.exe firmware/robot/robot.py view` | opens a page in the browser that draws what the LiDAR sees |
 
 Replace `COM7` with the robot's port (Device Manager → Ports, with the cable in).
 
@@ -88,6 +89,54 @@ A status line prints by itself every 10 seconds, and every second during a chase
 | `level` | learns "level" again; the robot must be still on the floor |
 | `cal`, then `cal 1.0` | distance calibration (below) |
 | `help` | lists these |
+
+## Seeing what the robot sees
+
+    .\.venv\Scripts\python.exe firmware/robot/robot.py view
+
+This opens a page in your browser, served from this PC only, that draws each LiDAR scan as it
+arrives over Wi-Fi. Press **LiDAR on**: the LiDAR spins up and scans appear after about 2 seconds.
+The motors stay off. **LiDAR off** ends it, and it switches itself off after 10 minutes. During a
+chase the scans stream by themselves.
+
+| On the page | Meaning |
+|---|---|
+| Blue dots | what the LiDAR sees: the closest thing in each 5° slice |
+| Yellow ring | the nearest thing; its distance and direction are in the side panel |
+| Green triangle | the robot, pointing the way it faces |
+| **Robot** view | the robot stays in the middle facing up. Use this for the LiDAR test. |
+| **Room** view | the room stays still and the robot moves through it, with its trail, the start, and everything seen so far |
+| 2 m / 4 m / 8 m | how far the picture reaches |
+
+Options: `--record scans.jsonl` also saves every message to a file, for studying later.
+`--demo` shows a made-up robot in a made-up room, with no robot switched on, to try the page.
+
+### The LiDAR test
+Do this once, and again whenever the LiDAR is re-mounted. The steering depends on it.
+
+1. Put the robot on the floor with at least a metre clear all round. Run `view`, press **LiDAR on**,
+   and stay in **Robot** view.
+2. **Front.** Stand a box 40 to 50 cm straight ahead of the robot. Pass: a cluster of dots appears
+   at the top of the picture, under FRONT, and Nearest thing reads about 0° (front) at the right
+   distance.
+3. **Right.** Move the box to the robot's right side. Pass: the dots are on the right of the
+   picture and the direction reads about 90° (right).
+4. **Left and back.** Same again. Pass: about 270° (left) and about 180° (back).
+5. **Distance.** Measure from the centre of the LiDAR to the box. Pass: within a few cm.
+6. **Own body.** Take the box away. Pass: no dots closer than about 20 cm that stay put when the
+   robot is moved. Dots that travel with the robot are its own shell or wiring; note their
+   direction.
+7. **Turning.** Switch to **Room** view and slowly turn the robot on the spot by hand, a full turn.
+   Pass: the room's walls stay where they are while the green triangle turns, and Facing returns
+   to about 0°. If the walls smear round with the robot, the turn sensing is wrong.
+8. **Moving.** Push the robot a measured metre straight ahead. Pass: the triangle moves up one
+   metre ring and Distance from start reads about 1.00 m. (Do the `cal` step first.)
+
+If a direction is wrong:
+- Front is off by a fixed angle: change `LIDAR_FRONT_OFFSET_DEG` in `config.h` by that amount.
+- Front is right but left and right are swapped: flip `LIDAR_ANGLES_CLOCKWISE`.
+- In step 7 the picture turns the wrong way: tell Claude; the turn direction is set in the
+  firmware, not in `config.h`.
 
 ## First run, in order
 

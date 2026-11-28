@@ -16,6 +16,7 @@ Each milestone gets a doc in `docs/milestones/` when it is done (see CLAUDE.md).
 | M5 | Alarms | Nov 27 | merged |
 | M6 | Robot link and local server | Nov 29 | in review |
 | M6b | Robot firmware | Nov 29 | in review |
+| M6c | Robot navigation | Nov 30 | in progress |
 | M7 | Demo hardening and report | Dec 1 | planned |
 
 Target dates are a plan, not promises. Thanksgiving is November 26th. If Phase A slips, cut from M3's
@@ -171,6 +172,19 @@ November 27th, 2026, when Will moved the robot's firmware into this repo.
 - **Navigation guide** (`docs/robot-navigation.md`): how it drives now and how to refine it.
 - **Not included:** deep sleep, and fleeing from the person specifically.
 - **Done when:** the bring-up checklist in `docs/robot-integration.md` passes through step 12.
+
+### M6c — Robot navigation
+**Goal:** the robot runs away with purpose instead of wandering. Asked for by Will on November
+28th, 2026 after the first floor runs: it avoided walls but drifted in slow circles.
+- **Stage A, see what it sees:** scans streamed over Wi-Fi, a browser viewer (`robot.py view`) with
+  recording, position tracking from the encoders and gyro, and a LiDAR test.
+- **Stage B, get away from the start:** steer for the best gap using the whole scan, favour gaps
+  that lead away from where it started and from where it has been, hold a heading with the gyro,
+  speed scaled to the room ahead with the cap raised to 80%.
+- **Stage C, avoid people:** find narrow moving clusters (legs), track the best one, and prefer
+  gaps away from it. Tuned on recordings from stage A.
+- **Done when:** from a start beside the bed it ends up across the room without circling, and
+  moves away from a person walking towards it.
 
 ### M7 — Demo hardening and report
 **Goal:** a reliable demo and the material for the report.

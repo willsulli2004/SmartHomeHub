@@ -15,6 +15,8 @@
 //   drive.*     motors, encoders, odometry, stall check
 //   sensors.*   battery, tilt from the IMU, LiDAR
 //   chase.*     the driving decisions while running away
+//   pose.*      where the robot is, relative to where the chase started
+//   console.*   text output to USB and, over Wi-Fi, to alarmbot/log
 //   secrets.h   generated from firmware/robot/.env by robot.py; never committed
 //
 // Build and upload with firmware/robot/robot.py (see firmware/robot/README.md).
@@ -28,6 +30,7 @@
 #include "console.h"
 #include "drive.h"
 #include "net.h"
+#include "pose.h"
 #include "sensors.h"
 
 enum class State { Idle, Fleeing, Caught, Error };
@@ -51,6 +54,13 @@ float caught_distance_m = 0;
 uint32_t last_telemetry_ms = 0;
 uint32_t last_status_ms = 0;
 double next_alarm_epoch = 0;       // from hub/alarm/schedule; 0 = no alarm set
+
+// LiDAR test mode ("scan on"): the LiDAR runs and scans are streamed while the
+// robot is idle, motors off, so the viewer can be used without a chase.
+bool scan_test = false;
+uint32_t scan_test_start_ms = 0;
+uint32_t last_scan_sent_ms = 0;
+uint32_t last_scan_rotation = 0;
 
 // Calibration ("cal" command): counts when it started, or -1 when not running.
 long cal_start_l = -1, cal_start_r = -1;
@@ -133,6 +143,22 @@ void publishTelemetry() {
   net::publish("alarmbot/telemetry", payload, 0, false);
 }
 
+// One LiDAR rotation and the robot's position, for `robot.py view`. Distances
+// are in cm, one per 5-degree slice, slice 0 straight ahead, clockwise; 0 means
+// nothing was seen. Sent about three times a second while the LiDAR is running.
+void publishScan() {
+  char payload[540];
+  int n = snprintf(payload, sizeof(payload),
+                   "{\"t\":%lu,\"s\":\"%s\",\"x\":%.2f,\"y\":%.2f,\"h\":%.0f,\"d\":[",
+                   (unsigned long)millis(), stateName(), pose::x(), pose::y(), pose::headingDeg());
+  const uint16_t *slice = lidar::slices();
+  for (int i = 0; i < lidar::SLICES && n < (int)sizeof(payload) - 8; i++) {
+    n += snprintf(payload + n, sizeof(payload) - n, i == 0 ? "%u" : ",%u", (unsigned)(slice[i] / 10));
+  }
+  snprintf(payload + n, sizeof(payload) - n, "]}");
+  net::publish("alarmbot/scan", payload, 0, false);
+}
+
 void publishCaught() {
   char ts[24], payload[200];
   net::isoNow(ts, sizeof(ts));
@@ -157,6 +183,7 @@ void setState(State next) {
 void stopEverything() {
   drive::sleep();
   lidar::powerOff();
+  scan_test = false;
   lifted = false;
   tilt_since_ms = 0;
 }
@@ -185,6 +212,7 @@ void startChase(const char *id) {
   drive::resetOdometry();
   // The robot is standing still on the floor at this moment: learn "level" now.
   if (!imu::captureLevel()) console.println("[chase] WARNING: no IMU, so a lift cannot be detected");
+  pose::reset();  // this spot, facing this way, is the start the robot runs away from
   lidar::powerOn();
   chase::begin();
   lifted = false;
@@ -313,6 +341,8 @@ void printHelp() {
   console.println("  start        run a chase without the hub (alarm id local-test)");
   console.println("  stop         end the chase");
   console.println("  level        learn 'level' again; robot must be still on the floor");
+  console.println("  scan on      LiDAR test: run the LiDAR and stream scans, motors off");
+  console.println("  scan off     end the LiDAR test");
   console.println("  cal          begin distance calibration, then push the robot a measured distance");
   console.println("  cal 1.0      finish it: the number is the distance pushed, in metres");
   console.println("  help         this list");
@@ -331,6 +361,23 @@ void handleCommand(String line) {
     if (state != State::Idle) goIdle();
   } else if (line == "level") {
     console.println(imu::captureLevel() ? "Level learned." : "No IMU.");
+  } else if (line == "scan on") {
+    if (state != State::Idle) {
+      console.println("The LiDAR test only runs while idle.");
+      return;
+    }
+    imu::captureLevel();  // also measures the gyro's resting offset
+    pose::reset();
+    lidar::powerOn();
+    scan_test = true;
+    scan_test_start_ms = millis();
+    console.println("LiDAR test on. Motors stay off. Scans start in about 2 seconds.");
+  } else if (line == "scan off") {
+    if (scan_test) {
+      lidar::powerOff();
+      scan_test = false;
+    }
+    console.println("LiDAR test off.");
   } else if (line == "cal") {
     if (state != State::Idle) {
       console.println("Calibrate while idle.");
@@ -417,6 +464,7 @@ void loop() {
   battery::update();
   imu::update();
   lidar::update();
+  pose::update();
   readSerial();
 
   if (net::takeConnected()) {
@@ -442,7 +490,21 @@ void loop() {
     publishTelemetry();
   }
 
-  const uint32_t status_period = state == State::Fleeing ? 1000 : 10000;
+  // A LiDAR test left running switches itself off after 10 minutes.
+  if (scan_test && now - scan_test_start_ms > 10UL * 60UL * 1000UL) {
+    lidar::powerOff();
+    scan_test = false;
+    console.println("LiDAR test ended by itself after 10 minutes.");
+  }
+
+  // Stream scans while the LiDAR is running: in a chase, or in the LiDAR test.
+  if (lidar::scanning() && now - last_scan_sent_ms >= 300 && lidar::rotationNumber() != last_scan_rotation) {
+    last_scan_sent_ms = now;
+    last_scan_rotation = lidar::rotationNumber();
+    publishScan();
+  }
+
+  const uint32_t status_period = (state == State::Fleeing || scan_test) ? 1000 : 10000;
   if (now - last_status_ms >= status_period) {
     last_status_ms = now;
     printStatus();

@@ -13,6 +13,8 @@ Run from the repo folder with the project's Python:
     ota           build, then upload over Wi-Fi to a robot that is switched on and idle
     monitor COMx  show the robot's output over the USB cable
     monitor       show the robot's output over Wi-Fi, and send it typed commands
+    view          open a page in the browser that draws what the robot's LiDAR sees
+                  (--record FILE saves the session; --demo shows a made-up robot)
 
 It uses the arduino-cli program that comes with the Arduino IDE, and the ESP32
 board package already installed there. The Wi-Fi monitor uses paho-mqtt, which
@@ -251,10 +253,25 @@ def wifi_monitor(values: dict[str, str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build and upload the alarm robot's firmware.")
-    parser.add_argument("action", choices=("compile", "usb", "ota", "monitor"))
+    parser.add_argument("action", choices=("compile", "usb", "ota", "monitor", "view"))
+    parser.add_argument("--record", type=Path, metavar="FILE", help="view: also save every message to FILE")
+    parser.add_argument("--demo", action="store_true", help="view: show a made-up robot, with no robot or broker")
+    parser.add_argument("--http-port", type=int, default=8765, help="view: port for the page (default 8765)")
+    parser.add_argument("--no-browser", action="store_true", help="view: do not open the browser")
     parser.add_argument("port", nargs="?", help="COM port for usb and monitor, for example COM7")
     parser.add_argument("--example", action="store_true", help="build with .env.example (no real credentials)")
     args = parser.parse_args()
+
+    if args.action == "view":
+        sys.path.insert(0, str(HERE))
+        import viewer
+
+        if args.demo:
+            viewer.run_demo(port=args.http_port, open_browser=not args.no_browser)
+        else:
+            viewer.run(read_env(HERE / ".env"), port=args.http_port, record=args.record,
+                       open_browser=not args.no_browser)
+        return
 
     if args.action == "monitor" and not args.port:
         wifi_monitor(read_env(HERE / ".env"))

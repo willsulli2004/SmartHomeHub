@@ -31,6 +31,11 @@ float odometryMetres();
 float speedMetresPerSecond();
 void resetOdometry();
 
+// How far the robot has moved forward (negative for backward) since this was
+// last called, in metres. Turning on the spot gives about zero. It reads the
+// encoders directly, so it also works when the robot is pushed by hand.
+float takeForwardMetres();
+
 // Raw counts since boot, forward positive, for calibration.
 long rawCountLeft();
 long rawCountRight();

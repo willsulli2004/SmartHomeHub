@@ -196,6 +196,22 @@ void resetOdometry() {
   speed_mps = 0;
 }
 
+float takeForwardMetres() {
+  static long last_l = 0, last_r = 0;
+  static bool first = true;
+  long left, right;
+  readCounts(left, right);
+  if (first) {
+    last_l = left;
+    last_r = right;
+    first = false;
+  }
+  const float counts = ((left - last_l) + (right - last_r)) / 2.0f;
+  last_l = left;
+  last_r = right;
+  return counts / counts_per_metre;
+}
+
 long rawCountLeft() {
   long l, r;
   readCounts(l, r);

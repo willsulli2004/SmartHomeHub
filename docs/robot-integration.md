@@ -90,9 +90,10 @@ Two more topics exist for development only. The hub ignores both.
 |---|---|---|---|---|
 | `alarmbot/log` | robot → anyone listening | 0 | no | each line of the robot's text output, as plain text |
 | `alarmbot/command` | developer → robot | 1 | no | a console command as plain text, for example `status` |
+| `alarmbot/scan` | robot → anyone listening | 0 | no | about 3 a second while the LiDAR runs: `{"t", "s", "x", "y", "h", "d"}` with the robot's position in metres, heading in degrees, and `d`: 72 distances in cm, one per 5° slice, slice 0 straight ahead, clockwise, 0 = nothing seen |
 
-`firmware/robot/robot.py monitor` uses them to show the robot's output and send commands over
-Wi-Fi. A command can start the motors (`start`), so anything with a login to the broker can make
+`firmware/robot/robot.py monitor` uses the first two to show the robot's output and send commands
+over Wi-Fi, and `robot.py view` draws the scans in a browser. A command can start the motors (`start`), so anything with a login to the broker can make
 the robot drive, which is equally true of `hub/alarm/start`.
 
 ### `hub/alarm/schedule`

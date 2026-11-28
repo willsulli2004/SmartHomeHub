@@ -66,7 +66,7 @@ void onMqttEvent(void *, esp_event_base_t, int32_t event_id, void *event_data) {
 // must arrive in a queue of their own that is always emptied first.
 struct Outgoing {
   char topic[40];
-  char payload[320];
+  char payload[560];   // the largest message is a LiDAR scan, about 400 characters
   uint8_t qos;
   bool retain;
 };
@@ -131,7 +131,7 @@ void begin() {
   inbox = xQueueCreate(6, sizeof(Incoming));
   urgent = xQueueCreate(8, sizeof(Outgoing));
   routine = xQueueCreate(12, sizeof(Outgoing));
-  xTaskCreate(senderTask, "mqtt-send", 4096, nullptr, 1, nullptr);
+  xTaskCreate(senderTask, "mqtt-send", 6144, nullptr, 1, nullptr);
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(ROBOT_HOSTNAME);
   WiFi.setAutoReconnect(true);

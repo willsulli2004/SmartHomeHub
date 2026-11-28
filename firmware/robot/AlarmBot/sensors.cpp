@@ -56,6 +56,11 @@ uint32_t last_us = 0;
 float now_x = 0, now_y = 0, now_z = 1;
 float level_x = 0, level_y = 0, level_z = 1;
 
+// The gyro's reading when the robot is not turning (rad/s), and the turn rate
+// about the vertical worked out from the latest reading (deg/s, clockwise +).
+float bias_x = 0, bias_y = 0, bias_z = 0;
+float yaw_rate_dps = 0;
+
 void normalise(float &x, float &y, float &z) {
   const float length = sqrtf(x * x + y * y + z * z);
   if (length < 1e-6f) return;
@@ -94,7 +99,11 @@ void update() {
   // 1. Turn the remembered gravity direction by how much the gyro says the robot
   //    rotated. This follows fast tilts and ignores sideways pushes, which is why
   //    accelerating or cornering does not look like a tilt.
-  const float wx = gyro.gyro.x, wy = gyro.gyro.y, wz = gyro.gyro.z;  // rad/s
+  const float wx = gyro.gyro.x - bias_x, wy = gyro.gyro.y - bias_y, wz = gyro.gyro.z - bias_z;  // rad/s
+  // Turning on the floor is rotation about the vertical. The accelerometer's
+  // resting reading points up, and a positive rotation about "up" is
+  // anticlockwise seen from above, hence the minus sign.
+  yaw_rate_dps = -(wx * level_x + wy * level_y + wz * level_z) * 180.0f / PI;
   const float dx = (now_y * wz - now_z * wy) * dt;
   const float dy = (now_z * wx - now_x * wz) * dt;
   const float dz = (now_x * wy - now_y * wx) * dt;
@@ -121,14 +130,23 @@ bool captureLevel() {
   if (!present) return false;
   // Average the accelerometer for about a quarter of a second.
   float sx = 0, sy = 0, sz = 0;
+  float gx = 0, gy = 0, gz = 0;
   for (int i = 0; i < 25; i++) {
     sensors_event_t accel, gyro, temp;
     sensor.getEvent(&accel, &gyro, &temp);
     sx += accel.acceleration.x;
     sy += accel.acceleration.y;
     sz += accel.acceleration.z;
+    gx += gyro.gyro.x;
+    gy += gyro.gyro.y;
+    gz += gyro.gyro.z;
     delay(10);
   }
+  // The robot is standing still, so whatever the gyro reads now is its offset.
+  bias_x = gx / 25.0f;
+  bias_y = gy / 25.0f;
+  bias_z = gz / 25.0f;
+  yaw_rate_dps = 0;
   normalise(sx, sy, sz);
   level_x = now_x = sx;
   level_y = now_y = sy;
@@ -136,6 +154,8 @@ bool captureLevel() {
   last_us = micros();
   return true;
 }
+
+float yawRateDegPerSec() { return present ? yaw_rate_dps : 0; }
 
 float tiltDegrees() {
   if (!present) return 0;
@@ -161,9 +181,11 @@ struct Scan {
   float nearest_mm = 0, nearest_deg = 0;
   float front_mm = 0, left_mm = 0, right_mm = 0;
   int points = 0;
+  uint16_t slice_mm[SLICES] = {};   // closest valid return per 5-degree slice
 };
 Scan building, complete;
 uint32_t complete_ms = 0;
+uint32_t rotation_number = 0;
 int rotations_this_second = 0, rotations_per_second = 0;
 uint32_t rate_window_ms = 0;
 
@@ -189,6 +211,7 @@ void handleNode(const uint8_t *node) {
     complete_ms = millis();
     building = Scan();
     rotations_this_second++;
+    rotation_number++;
   }
   if (distance < LIDAR_MIN_VALID_MM) return;  // 0 = no return; very close = our own shell
 
@@ -198,6 +221,12 @@ void handleNode(const uint8_t *node) {
     building.nearest_mm = distance;
     building.nearest_deg = bearing;
   }
+  // Slice 0 is centred on straight ahead, so it covers -2.5 to +2.5 degrees.
+  const float around = bearing < 0 ? bearing + 360.0f : bearing;
+  const int slice = ((int)lroundf(around / SLICE_DEG)) % SLICES;
+  const uint16_t mm = distance > 65000.0f ? 65000 : (uint16_t)distance;
+  if (building.slice_mm[slice] == 0 || mm < building.slice_mm[slice]) building.slice_mm[slice] = mm;
+
   if (fabsf(bearing) <= 30.0f) keepSmallest(building.front_mm, distance);
   else if (bearing > 30.0f && bearing <= 100.0f) keepSmallest(building.right_mm, distance);
   else if (bearing < -30.0f && bearing >= -100.0f) keepSmallest(building.left_mm, distance);
@@ -291,5 +320,7 @@ float frontMm() { return scanning() ? complete.front_mm : 0; }
 float leftMm() { return scanning() ? complete.left_mm : 0; }
 float rightMm() { return scanning() ? complete.right_mm : 0; }
 int rotationsPerSecond() { return rotations_per_second; }
+const uint16_t *slices() { return complete.slice_mm; }
+uint32_t rotationNumber() { return rotation_number; }
 
 }  // namespace lidar
