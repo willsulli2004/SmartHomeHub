@@ -79,7 +79,9 @@ constexpr uint32_t LIFT_CAUGHT_MS = 1200;   // held this long = caught
 // ---- LiDAR ----
 // Which LiDAR angle points straight ahead on the robot, and which way its angles
 // run. Both are "TBD after mounting" in the hardware notes; measure and set them.
-constexpr float LIDAR_FRONT_OFFSET_DEG = 90.0f;
+// Checked with the viewer on November 28th, 2026: with 90 here, a box in front
+// showed on the left, so the LiDAR's own 0 degrees is the robot's front.
+constexpr float LIDAR_FRONT_OFFSET_DEG = 0.0f;
 constexpr bool LIDAR_ANGLES_CLOCKWISE = true;
 constexpr float LIDAR_MIN_VALID_MM = 150.0f;   // closer returns are the robot's own shell
 constexpr float OBSTACLE_STOP_MM = 350.0f;     // something this close ahead: turn away
