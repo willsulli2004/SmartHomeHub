@@ -1,0 +1,3 @@
+# The alarm analytics service needs one library; everything else is in Python itself.
+# Pinned so the container and the development PC run the same version.
+paho-mqtt==2.1.0

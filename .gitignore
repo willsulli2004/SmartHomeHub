@@ -27,3 +27,6 @@ build/
 # IDE
 .idea/
 .vscode/
+
+# Local data written by services
+*.db
