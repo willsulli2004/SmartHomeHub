@@ -37,7 +37,7 @@ constexpr int PIN_BATTERY_ADC = 1;
 
 // Directions found in the motor test: forward gives positive counts on both wheels.
 constexpr bool INVERT_MOTOR_L = false;
-constexpr bool INVERT_MOTOR_R = false;
+constexpr bool INVERT_MOTOR_R = true;
 constexpr bool INVERT_ENC_L = true;
 constexpr bool INVERT_ENC_R = true;
 
@@ -79,7 +79,7 @@ constexpr uint32_t LIFT_CAUGHT_MS = 1200;   // held this long = caught
 // ---- LiDAR ----
 // Which LiDAR angle points straight ahead on the robot, and which way its angles
 // run. Both are "TBD after mounting" in the hardware notes; measure and set them.
-constexpr float LIDAR_FRONT_OFFSET_DEG = 0.0f;
+constexpr float LIDAR_FRONT_OFFSET_DEG = 90.0f;
 constexpr bool LIDAR_ANGLES_CLOCKWISE = true;
 constexpr float LIDAR_MIN_VALID_MM = 150.0f;   // closer returns are the robot's own shell
 constexpr float OBSTACLE_STOP_MM = 350.0f;     // something this close ahead: turn away
